@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WithdrawScreen extends StatefulWidget {
-  const WithdrawScreen({Key? key}) : super(key: key);
+  const WithdrawScreen({super.key});
 
   @override
   _WithdrawScreenState createState() => _WithdrawScreenState();
