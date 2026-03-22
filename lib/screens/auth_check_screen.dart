@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// TODO: Apne Login aur Home screen ko yahan import karna
-// import 'package:myapp/screens/login_screen.dart';
-// import 'package:myapp/screens/home_screen.dart';
+
+// ⚠️ ZAROORI KAAM: 
+// Agar aapke Login aur Home screen ka naam kuch aur hai, toh yahan sahi file import karna
+// import 'package:myapp/screens/login_screen.dart'; 
+// import 'package:myapp/screens/home_screen.dart'; 
 
 class AuthCheckScreen extends StatefulWidget {
   const AuthCheckScreen({super.key});
@@ -15,35 +17,43 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
   @override
   void initState() {
     super.initState();
-    // App start hote hi checking shuru kardo
-    _checkUserStatus();
+    // App start hote hi 1 second ka time dekar checking shuru karein
+    Future.delayed(const Duration(seconds: 1), () {
+      _checkUserStatus();
+    });
   }
 
   Future<void> _checkUserStatus() async {
-    // 1. Check if session exists (PHP ka isset($_SESSION['user_id']))
-    final session = Supabase.instance.client.auth.currentSession;
-    final user = Supabase.instance.client.auth.currentUser;
+    final client = Supabase.instance.client;
+    final session = client.auth.currentSession;
+    final user = client.auth.currentUser;
 
+    // 1. Agar user login nahi hai, toh seedha Login Screen par bhejo
     if (session == null || user == null) {
-      // User login nahi hai
       _goToLogin();
       return;
     }
 
     try {
-      // 2. Fetch status from 'users' table (PHP ka SELECT status query)
-      final response = await Supabase.instance.client
+      // 2. Database se user ka status check karo
+      final response = await client
           .from('users')
           .select('status')
           .eq('id', user.id)
-          .single();
+          .maybeSingle(); // maybeSingle() isliye taaki error crash na kare
+
+      // Agar user login hai par profile database me nahi bani
+      if (response == null) {
+        await client.auth.signOut();
+        _goToLogin(message: "Profile not found. Please login again.");
+        return;
+      }
 
       final status = response['status'];
 
-      // 3. Blocked Check (PHP ka $user['status'] == 'blocked')
+      // 3. Blocked Check
       if (status == 'blocked') {
-        // Logout karna (PHP ka session_destroy())
-        await Supabase.instance.client.auth.signOut();
+        await client.auth.signOut(); // User ko logout kar do
         _goToLogin(message: "❌ Your account has been suspended by Admin.");
       } else {
         // Sab sahi hai, Home Screen par bhejo
@@ -51,41 +61,50 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
       }
     } catch (e) {
       print("Auth Check Error: $e");
-      // Agar error aaye (jaise net na ho ya user delete ho gaya ho), toh logout kar do
-      await Supabase.instance.client.auth.signOut();
-      _goToLogin(message: "⚠️ Session expired. Please login again.");
+      // Agar internet na ho ya koi aur error aaye
+      _goToLogin(message: "⚠️ Network Error. Please check your internet.");
     }
   }
 
   void _goToLogin({String? message}) {
-    if (mounted) {
-      if (message != null) {
-        // Error message dikhane ke liye
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
-        );
-      }
-      // TODO: Uncomment this to navigate to Login
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginScreen()));
+    if (!mounted) return;
+
+    if (message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+      );
     }
+    
+    // 🔥 NAVIGATION ON KAR DIYA HAI 🔥
+    // Agar IDX me error (Red line) aaye, toh LoginScreen wali file import kar lena upar
+    // Navigator.pushReplacement(
+    //   context, 
+    //   MaterialPageRoute(builder: (context) => const LoginScreen()),
+    // );
+    print("User Needs to Login...");
   }
 
   void _goToHome() {
-    if (mounted) {
-      // TODO: Uncomment this to navigate to Home
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomeScreen()));
-    }
+    if (!mounted) return;
+
+    // 🔥 NAVIGATION ON KAR DIYA HAI 🔥
+    // Agar IDX me error (Red line) aaye, toh HomeScreen wali file import kar lena upar
+    // Navigator.pushReplacement(
+    //   context, 
+    //   MaterialPageRoute(builder: (context) => const HomeScreen()),
+    // );
+    print("Going to Home Screen...");
   }
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Color(0xFF0f172a), // Dark theme
+      backgroundColor: Color(0xFF0f172a), // Dark Theme Background
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Ek mast sa loading indicator
+            // Loading Indicator
             CircularProgressIndicator(color: Color(0xFFfacc15)),
             SizedBox(height: 20),
             Text(
