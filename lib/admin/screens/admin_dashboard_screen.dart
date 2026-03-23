@@ -1,6 +1,9 @@
 import 'package:battle_master/admin/screens/admin_users_screen.dart';
+import 'package:battle_master/admin/screens/coin_add_screen.dart';
 import 'package:battle_master/admin/screens/create_tournament_screen.dart';
+import 'package:battle_master/admin/screens/delete_tournament_screen.dart';
 import 'package:battle_master/admin/screens/manage_tournament_screen.dart';
+import 'package:battle_master/admin/screens/payment_requests_screen.dart';
 import 'package:flutter/material.dart';
 
 
@@ -25,12 +28,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _selectedIndex = 0;
   bool _isExpanded = false;
 
-  // Yahan par saari screens ki list hogi jo menu se select hongi
   static const List<Widget> _screens = [
-    DashboardHomeWidget(),         // Index 0
-    CreateTournamentScreen(),      // Index 1
-    ManageTournamentScreen(),      // Index 2 (Naya)
-    AdminUsersScreen(),            // Index 3
+    DashboardHomeWidget(),         // 0
+    CreateTournamentScreen(),      // 1
+    ManageTournamentScreen(),      // 2
+    DeleteTournamentScreen(),      // 3 
+    CoinAddScreen(),               // 4
+    PaymentRequestsScreen(),       // 5 (Naya)
+    AdminUsersScreen(),            // 6
   ];
 
   @override
@@ -71,7 +76,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               NavigationRailDestination(
                 icon: Icon(Icons.edit_document),
                 selectedIcon: Icon(Icons.edit_document),
-                label: Text('Manage Match'), // Naya Menu Item
+                label: Text('Manage Match'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.delete_forever_outlined),
+                selectedIcon: Icon(Icons.delete_forever),
+                label: Text('Delete Match'),
+              ),
+               NavigationRailDestination(
+                icon: Icon(Icons.monetization_on_outlined),
+                selectedIcon: Icon(Icons.monetization_on),
+                label: Text('Add Coins'),
+              ),
+               NavigationRailDestination(
+                icon: Icon(Icons.payment_outlined),
+                selectedIcon: Icon(Icons.payment),
+                label: Text('Payments'), // Naya Menu Item
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.group_outlined),
@@ -81,10 +101,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
           const VerticalDivider(thickness: 1, width: 1),
-          // Content area
-          Expanded(
-            child: _screens[_selectedIndex],
-          ),
+          Expanded(child: _screens[_selectedIndex]),
         ],
       ),
     );
