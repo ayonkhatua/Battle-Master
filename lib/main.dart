@@ -40,10 +40,11 @@ void main() async {
   // FINAL CORRECT IMPLEMENTATION FOR supabase_flutter v2.x
   // This uses the modern, stream-based approach which is the correct way.
   //
-  final channel = Supabase.instance.client.channel('public:app_config');
-  final stream = channel.stream(primaryKey: ['id']).eq('id', 1);
-
-  stream.listen((List<Map<String, dynamic>> data) {
+  Supabase.instance.client
+      .from('app_config')
+      .stream(primaryKey: ['id'])
+      .eq('id', 1)
+      .listen((List<Map<String, dynamic>> data) {
     if (data.isNotEmpty) {
       final newRecord = data.first;
       final newStatus = newRecord['is_maintenance_on'] as bool? ?? false;
@@ -67,15 +68,7 @@ void main() async {
     }
   });
 
-  // Subscribe to the channel to start listening.
-  channel.subscribe();
-
-
   runApp(MyApp(isMaintenanceOn: isMaintenanceOn));
-}
-
-extension on RealtimeChannel {
-  stream({required List<String> primaryKey}) {}
 }
 
 class MyApp extends StatelessWidget {

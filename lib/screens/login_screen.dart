@@ -17,6 +17,13 @@ class _LoginScreenState extends State<LoginScreen> {
   
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -85,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
 
                 // Ab sirf email ka input hai
-                _buildInput(_emailController, "Email Address", Icons.email_outlined),
+                _buildInput(_emailController, "Email Address", Icons.email_outlined, keyboardType: TextInputType.emailAddress),
                 _buildInput(_passwordController, "Password", Icons.lock_outline, isPassword: true),
                 const SizedBox(height: 25),
 
@@ -132,12 +139,13 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildInput(TextEditingController controller, String hint, IconData icon, {bool isPassword = false}) {
+  Widget _buildInput(TextEditingController controller, String hint, IconData icon, {bool isPassword = false, TextInputType? keyboardType}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15.0),
       child: TextField(
         controller: controller,
         obscureText: isPassword,
+        keyboardType: keyboardType,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: Colors.white70, size: 20),
