@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Clipboard (copy text) use karne ke liye
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:myapp/screens/participants_screen.dart'; // Apna sahi path dalna
+import 'package:battle_master/screens/participants_screen.dart'; // Apna sahi path dalna
 
 class RulesScreen extends StatefulWidget {
   final int tournamentId;

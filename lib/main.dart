@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // 🔥 1. dotenv package import kiya
 
 // Yahan humne AuthCheckScreen ko import kiya hai
-import 'package:myapp/screens/auth_check_screen.dart'; 
+import 'package:battle_master/screens/auth_check_screen.dart'; 
 
 Future<void> main() async { // 🔥 2. void ko Future<void> kiya
   WidgetsFlutterBinding.ensureInitialized();

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:myapp/screens/confirm_ign_screen.dart'; // Apna sahi path dalna
+import 'package:battle_master/screens/confirm_ign_screen.dart'; // Apna sahi path dalna
 
 class ChooseSlotScreen extends StatefulWidget {
   final int tournamentId;

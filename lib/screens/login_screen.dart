@@ -1,7 +1,8 @@
+import 'package:battle_master/screens/home_screen.dart';
+import 'package:battle_master/screens/register_screen.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'dart:ui'; // Glassmorphism ke liye
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,212 +11,148 @@ class LoginScreen extends StatefulWidget {
   _LoginScreenState createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
-  final _identifierController = TextEditingController();
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController(); // Controller ka naam bhi saaf kar diya
   final _passwordController = TextEditingController();
   
   bool _isLoading = false;
-  late AnimationController _bgController;
-
-  @override
-  void initState() {
-    super.initState();
-    // Background gradient animation ke liye
-    _bgController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _bgController.dispose();
-    _identifierController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   Future<void> _login() async {
-    final identifier = _identifierController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    if (identifier.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("⚠️ Please fill all fields")));
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all fields")));
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      AuthResponse res;
-      
-      // LOGIC: Check kar rahe hain ki user ne Email dala hai ya Mobile number
-      if (identifier.contains('@')) {
-        res = await Supabase.instance.client.auth.signInWithPassword(
-          email: identifier,
-          password: password,
-        );
-      } else {
-        // Agar '@' nahi hai, toh hum maan rahe hain ki wo mobile number hai
-        res = await Supabase.instance.client.auth.signInWithPassword(
-          phone: identifier,
-          password: password,
-        );
-      }
+      // Ab seedha email aur password se login hoga
+      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
-      if (res.user != null) {
-        // Login Success!
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Login Successful!")));
-        // TODO: Navigate to Home Screen
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen()));
+      if (authResponse.user != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Login Successful!")));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
       }
     } on AuthException catch (e) {
-      // Supabase khud "Incorrect password" ya "User not found" ka error dega
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text("❌ ${e.message}"),
-        backgroundColor: Colors.redAccent,
-      ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("❌ ${e.message}"),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Something went wrong!")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ An unexpected error occurred!")));
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Animated Background Gradient
-          AnimatedBuilder(
-            animation: _bgController,
-            builder: (context, child) {
-              return Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFe0f7fa), Color(0xFFfff3e0), Color(0xFFf3e5f5), Color(0xFFffe0b2)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    transform: GradientRotation(_bgController.value * 2 * 3.14), // Smooth rotation
+      backgroundColor: const Color(0xFF1a202c),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 30.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "Welcome Back",
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(blurRadius: 10.0, color: Color(0xFFfacc15).withOpacity(0.5))
+                    ]
                   ),
                 ),
-              );
-            },
-          ),
+                const SizedBox(height: 10),
+                const Text(
+                  "Login with your email account", // Text bhi update kiya
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
+                ),
+                const SizedBox(height: 40),
 
-          // 2. Glassmorphism Login Card
-          Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(20),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(25),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
-                    width: 360,
-                    padding: EdgeInsets.symmetric(vertical: 50, horizontal: 35),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(25),
-                      border: Border.all(color: Colors.white.withOpacity(0.3)),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 15)
-                      ]
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Gradient Title using ShaderMask
-                        ShaderMask(
-                          shaderCallback: (bounds) => LinearGradient(
-                            colors: [Color(0xFFff8a00), Color(0xFFe52e71), Color(0xFF9b5de5)],
-                          ).createShader(bounds),
-                          child: Text(
+                // Ab sirf email ka input hai
+                _buildInput(_emailController, "Email Address", Icons.email_outlined),
+                _buildInput(_passwordController, "Password", Icons.lock_outline, isPassword: true),
+                const SizedBox(height: 25),
+
+                _isLoading
+                    ? const CircularProgressIndicator(color: Color(0xFFfacc15))
+                    : SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFfacc15),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: _login,
+                          child: const Text(
                             "Login",
-                            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                            style: TextStyle(color: Color(0xFF1a202c), fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ),
-                        SizedBox(height: 30),
+                      ),
+                const SizedBox(height: 20),
 
-                        // Inputs
-                        _buildInput(_identifierController, "Email or Mobile", FontAwesomeIcons.envelope),
-                        SizedBox(height: 12),
-                        _buildInput(_passwordController, "Password", FontAwesomeIcons.lock, isPassword: true),
-                        SizedBox(height: 25),
-
-                        // Gradient Button
-                        _isLoading 
-                          ? CircularProgressIndicator(color: Color(0xFFe52e71))
-                          : Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(30),
-                                gradient: LinearGradient(
-                                  colors: [Color(0xFFff8a00), Color(0xFFe52e71), Color(0xFF9b5de5)],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(color: Color(0xFFe52e71).withOpacity(0.4), blurRadius: 20, offset: Offset(0, 5))
-                                ]
-                              ),
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                                ),
-                                onPressed: _login,
-                                child: Text("Login", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                              ),
-                            ),
-                        
-                        SizedBox(height: 20),
-                        
-                        // Register Link
-                        GestureDetector(
-                          onTap: () {
-                            // TODO: Navigator.push to Register Screen
+                RichText(
+                  text: TextSpan(
+                    text: "Don't have an account? ",
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    children: <TextSpan>[
+                      TextSpan(
+                        text: 'Register here',
+                        style: const TextStyle(color: Color(0xFFfacc15), fontWeight: FontWeight.bold),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen()));
                           },
-                          child: Text(
-                            "Don't have an account? Register",
-                            style: TextStyle(
-                              fontSize: 14, 
-                              fontWeight: FontWeight.bold, 
-                              color: Color(0xFF9b5de5) // Base color for link
-                            ),
-                          ),
-                        )
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  // Custom Input Builder (Same as your HTML structure)
   Widget _buildInput(TextEditingController controller, String hint, IconData icon, {bool isPassword = false}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)],
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15.0),
       child: TextField(
         controller: controller,
         obscureText: isPassword,
-        style: TextStyle(color: Colors.black87),
+        style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Colors.white70, size: 20),
           hintText: hint,
-          hintStyle: TextStyle(color: Colors.black54),
-          prefixIcon: Icon(icon, color: Color(0xFFff8a00), size: 18),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 16),
+          hintStyle: const TextStyle(color: Colors.white54),
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.1),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFFfacc15), width: 2),
+          ),
         ),
       ),
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:myapp/screens/login_screen.dart'; // Ensure correct path for login screen
+import 'package:battle_master/screens/login_screen.dart'; // Corrected import path
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});

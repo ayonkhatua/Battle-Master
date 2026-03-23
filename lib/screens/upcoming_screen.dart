@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:myapp/screens/rules_screen.dart'; // Apna rules screen ka path check kar lena
+import 'package:battle_master/screens/rules_screen.dart'; // Apna rules screen ka path check kar lena
 
 class UpcomingScreen extends StatefulWidget {
   const UpcomingScreen({super.key});

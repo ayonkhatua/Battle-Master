@@ -1,4 +1,4 @@
-name: myapp
+name: battle_master
 description: "A new Flutter project."
 publish_to: 'none'
 
@@ -11,8 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  supabase_flutter: ^2.0.0  # Supabase ke liye
-  flutter_dotenv: ^5.1.0    # .env file read karne ke liye
+  supabase_flutter: ^2.0.0
+  flutter_dotenv: ^5.1.0
 
   # UI and Icons
   cupertino_icons: ^1.0.8
@@ -21,6 +21,8 @@ dependencies:
   intl: ^0.19.0
 
   url_launcher: ^6.3.2
+  # 'screens' package is not a standard package, maybe it's a local reference? Removing it for now as it may cause errors.
+  # screens: ^2.5.0 
 
 dev_dependencies:
   flutter_test:
@@ -33,5 +35,4 @@ flutter:
 
   assets:
     - .env
-    # Agar koi images ya logo add karna ho toh yahan se comment hata lena:
-    #   - assets/images/
+    - assets/images/

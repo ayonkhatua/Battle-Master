@@ -1,3 +1,5 @@
+import 'package:battle_master/screens/home_screen.dart';
+import 'package:battle_master/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -77,10 +79,10 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
     
     // 🔥 NAVIGATION ON KAR DIYA HAI 🔥
     // Agar IDX me error (Red line) aaye, toh LoginScreen wali file import kar lena upar
-    // Navigator.pushReplacement(
-    //   context, 
-    //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-    // );
+    Navigator.pushReplacement(
+      context, 
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
     print("User Needs to Login...");
   }
 
@@ -89,10 +91,10 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
 
     // 🔥 NAVIGATION ON KAR DIYA HAI 🔥
     // Agar IDX me error (Red line) aaye, toh HomeScreen wali file import kar lena upar
-    // Navigator.pushReplacement(
-    //   context, 
-    //   MaterialPageRoute(builder: (context) => const HomeScreen()),
-    // );
+    Navigator.pushReplacement(
+      context, 
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+    );
     print("Going to Home Screen...");
   }
 

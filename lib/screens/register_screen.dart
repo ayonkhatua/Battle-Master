@@ -1,7 +1,8 @@
+import 'package:battle_master/screens/login_screen.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
-import 'dart:ui'; // Glassmorphism ke liye
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,98 +17,141 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _cpasswordController = TextEditingController();
+  final _referralCodeController = TextEditingController(); // Referral Code ke liye naya controller
   
   bool _isLoading = false;
 
   Future<void> _register() async {
     if (_passwordController.text != _cpasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Passwords don't match")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Passwords don't match")));
       return;
+    }
+    
+    final username = _usernameController.text.trim();
+    final mobile = _mobileController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final referralCode = _referralCodeController.text.trim(); // Naya referral code yahan se milega
+
+    // Referral code optional hai, isliye iska validation yahan nahi hai
+    if (username.isEmpty || mobile.isEmpty || email.isEmpty || password.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all mandatory fields")));
+        return;
     }
 
     setState(() => _isLoading = true);
+    
+    final supabase = Supabase.instance.client;
 
     try {
-      // PHP wale rand(10000, 99999) ka Dart version
-      String referCode = "USR${Random().nextInt(90000) + 10000}";
-
-      // Supabase Signup (Ye Email aur Mobile ki duplicate entry khud rok lega)
-      final res = await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        data: {
-          'username': _usernameController.text.trim(),
-          'mobile': _mobileController.text.trim(),
-          'refer_code': referCode,
-        },
+      final authResponse = await supabase.auth.signUp(
+        email: email,
+        password: password,
       );
+      
+      if (authResponse.user != null) {
+        final user = authResponse.user!;
+        
+        String ownReferCode = "USR${Random().nextInt(90000) + 10000}";
+        
+        await supabase.from('users').insert({
+          'id': user.id,
+          'username': username,
+          'mobile': mobile,
+          'email': email,
+          'fcode': ownReferCode, // User ka apna referral code (pehle 'refer_code' tha, ab 'fcode' hai)
+          'referred_by': referralCode.isNotEmpty ? referralCode : null // Agar code daala hai to save karo, warna null
+        });
 
-      if (res.user != null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Registration Successful!")));
-        // TODO: Yahan se Login Screen par bhej dena
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("✅ Registration Successful! Please check your email for verification.")),
+          );
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+        }
       }
+    } on AuthException catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Auth Error: ${e.message}")));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("⚠️ Registration failed: $e")));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("⚠️ An unexpected error occurred: $e")));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1e3c72), Color(0xFF2a5298)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+      backgroundColor: const Color(0xFF1a202c),
+      body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(20),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: Container(
-                  width: 350,
-                  padding: EdgeInsets.all(30),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+            padding: const EdgeInsets.symmetric(horizontal: 30.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "Join the Battle",
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(blurRadius: 10.0, color: Color(0xFFfacc15).withOpacity(0.5))
+                    ]
                   ),
-                  child: Column(
-                    children: [
-                      Text("Create Account", style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFFFFD700))),
-                      SizedBox(height: 20),
-                      _buildInput(_usernameController, "👤 Username"),
-                      _buildInput(_mobileController, "📱 Mobile Number"),
-                      _buildInput(_emailController, "✉️ Email"),
-                      _buildInput(_passwordController, "🔒 Password", isPassword: true),
-                      _buildInput(_cpasswordController, "🔒 Confirm Password", isPassword: true),
-                      SizedBox(height: 10),
-                      _isLoading 
-                        ? CircularProgressIndicator(color: Color(0xFFFFD700))
-                        : SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFFFFD700),
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onPressed: _register,
-                              child: Text("Register", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
-                            ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  "Create your new account",
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
+                ),
+                const SizedBox(height: 40),
+
+                _buildInput(_usernameController, "Username", Icons.person_outline),
+                _buildInput(_mobileController, "Mobile Number", Icons.phone_android_outlined),
+                _buildInput(_emailController, "Email Address", Icons.email_outlined),
+                _buildInput(_passwordController, "Password", Icons.lock_outline, isPassword: true),
+                _buildInput(_cpasswordController, "Confirm Password", Icons.lock_outline, isPassword: true),
+                _buildInput(_referralCodeController, "Referral Code (Optional)", Icons.group_add_outlined), // Naya field UI me add kiya
+                const SizedBox(height: 25),
+
+                _isLoading
+                    ? const CircularProgressIndicator(color: Color(0xFFfacc15))
+                    : SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFfacc15),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
+                          onPressed: _register,
+                          child: const Text(
+                            "Register",
+                            style: TextStyle(color: Color(0xFF1a202c), fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                const SizedBox(height: 20),
+
+                RichText(
+                  text: TextSpan(
+                    text: "Already have an account? ",
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    children: <TextSpan>[
+                      TextSpan(
+                        text: 'Login here',
+                        style: const TextStyle(color: Color(0xFFfacc15), fontWeight: FontWeight.bold),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+                          },
+                      ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -115,20 +159,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildInput(TextEditingController controller, String hint, {bool isPassword = false}) {
+  Widget _buildInput(TextEditingController controller, String hint, IconData icon, {bool isPassword = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+      padding: const EdgeInsets.only(bottom: 15.0),
       child: TextField(
         controller: controller,
         obscureText: isPassword,
-        style: TextStyle(color: Colors.white),
+        style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Colors.white70, size: 20),
           hintText: hint,
-          hintStyle: TextStyle(color: Colors.white70),
+          hintStyle: const TextStyle(color: Colors.white54),
           filled: true,
-          fillColor: Colors.white.withOpacity(0.15),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          fillColor: Colors.white.withOpacity(0.1),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFFfacc15), width: 2),
+          ),
         ),
       ),
     );
