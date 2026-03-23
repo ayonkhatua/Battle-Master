@@ -1,5 +1,6 @@
 import 'package:battle_master/screens/maintenance_screen.dart';
-import 'package:battle_master/screens/login_screen.dart';
+// 🔥 Yahan LoginScreen hata kar AuthCheckScreen import kiya hai
+import 'package:battle_master/screens/auth_check_screen.dart'; 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Global navigator key to access the navigator from anywhere
 final navigatorKey = GlobalKey<NavigatorState>();
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables from .env file
@@ -59,8 +60,9 @@ void main() async {
             (route) => false,
           );
         } else {
+          // 🔥 YAHAN UPDATE HUA HAI: Ab ye sidha Login par nahi, AuthCheck par jayega
           navigatorKey.currentState?.pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
             (route) => false,
           );
         }
@@ -85,7 +87,8 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Roboto',
       ),
       navigatorKey: navigatorKey, 
-      home: isMaintenanceOn ? const MaintenanceScreen() : const LoginScreen(),
+      // 🔥 YAHAN BHI UPDATE HUA HAI: Default home ab AuthCheckScreen hai
+      home: isMaintenanceOn ? const MaintenanceScreen() : const AuthCheckScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
