@@ -15,37 +15,63 @@ Battle Master is a mobile gaming application designed for competitive players. I
 ## 3. Implemented Features
 
 ### Authentication
-*   **User Registration:**
-    *   Users can create a new account using their `Username`, `Mobile Number`, `Email`, and `Password`.
-    *   **New:** An optional `Referral Code` field has been added.
-    *   All mandatory fields are validated.
-    *   Password confirmation is required.
-    *   Upon successful registration, a new user record is created in the `users` table.
-    *   The `referred_by` column is populated if a referral code was provided.
-    *   A unique referral code for the new user is generated and stored in the `fcode` column.
-    *   A verification email is sent to the user.
-*   **User Login:**
-    *   Login is strictly based on `Email` and `Password`.
-    *   The option to log in with a mobile number has been removed to simplify the process and improve reliability.
-*   **Navigation:**
-    *   Seamless navigation between Login and Register screens.
+*   **User Registration:** Users can create a new account using their `Username`, `Mobile Number`, `Email`, and `Password`. An optional `Referral Code` can be provided.
+*   **User Login:** Login is based on `Email` and `Password`.
+*   **Navigation:** Seamless navigation between Login and Register screens.
 
 ### Database (`users` table)
-*   The `public.users` table stores essential user information.
-*   It now includes `mobile` and `email` columns to store the respective user data upon registration.
+*   The `public.users` table stores essential user information, including referral data.
 
-## 4. Current Task: Add Optional Referral Code to Registration
+### Global Maintenance Mode
+*   **Purpose**: Allows administrators to put the entire application into a maintenance state in real-time.
+*   **Control Mechanism**:
+    *   A `app_config` table in Supabase with a single row.
+    *   A boolean column `is_maintenance_on` acts as the master switch.
+*   **Real-time Functionality**:
+    *   The app listens to live changes in the `app_config` table using Supabase Realtime.
+    *   If `is_maintenance_on` is set to `true`, all active users are immediately forced to a dedicated `MaintenanceScreen`.
+    *   If `is_maintenance_on` is set to `false`, the app navigates users to the `LoginScreen` to restart their session.
+*   **Implementation Files**:
+    *   `lib/screens/maintenance_screen.dart`: The UI for the maintenance notice.
+    *   `lib/main.dart`: Contains the core logic for listening to the switch and handling navigation.
+
+## 4. Security Enhancements
+
+### Environment Variables for API Keys
+*   **Purpose**: To secure sensitive API keys and prevent them from being hardcoded in the source code.
+*   **Implementation**:
+    *   The `flutter_dotenv` package has been integrated.
+    *   A `.env` file was created at the project root to store `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+    *   `main.dart` was updated to load these keys from the `.env` file at runtime.
+
+## 5. Current Task: Implement Global Maintenance Mode (Completed)
 
 ### Plan and Steps
 
-1.  **UI Enhancement:**
-    *   **Action:** Modify `lib/screens/register_screen.dart`.
-    *   **Change:** Added a new `TextEditingController` (`_referralCodeController`) and a new input field in the UI for the referral code, placed below the confirm password field. The field is labeled "Referral Code (Optional)".
-2.  **Logic Implementation:**
-    *   **Action:** Updated the `_register` method.
-    *   **Change:** The value from the referral code input is retrieved. When inserting the new user data into the `users` table, a ternary check is performed: `referralCode.isNotEmpty ? referralCode : null`. This saves the provided code or `null` if the field is empty.
-3.  **Documentation Update:**
-    *   **Action:** Update the `blueprint.md` file to reflect this new feature.
-    *   **Change:** The "Implemented Features" and "Current Task" sections were updated to include details about the new optional referral code system.
+1.  **Database Setup**:
+    *   **Action**: An SQL migration was run on the Supabase project.
+    *   **Change**: Created the `app_config` table with an `is_maintenance_on` boolean column and enabled Row Level Security and Realtime.
 
-4.  **Final Outcome:** The registration process now supports an optional referral code, allowing for user acquisition tracking and rewards, without complicating the core registration flow.
+2.  **UI Creation**:
+    *   **Action**: Created a new file `lib/screens/maintenance_screen.dart`.
+    *   **Change**: Implemented a user-friendly screen informing the user about the ongoing maintenance.
+
+3.  **Security & Configuration**:
+    *   **Action**: Added the `flutter_dotenv` package and created a `.env` file.
+    *   **Change**: To manage Supabase URL and anon key securely, separating them from the source code.
+
+4.  **Core Logic Implementation**:
+    *   **Action**: Heavily modified `lib/main.dart`.
+    *   **Changes**:
+        *   Integrated `flutter_dotenv` to securely load Supabase keys.
+        *   Implemented a `GlobalKey<NavigatorState>` for app-wide navigation control.
+        *   Added logic to check the maintenance status on app startup.
+        *   Subscribed to the `app_config` table using Supabase Realtime to listen for live changes.
+        *   Created logic to force-navigate users to `MaintenanceScreen` or `LoginScreen` based on the realtime updates.
+
+5.  **Bug Fixes**:
+    *   **Action**: Corrected the Supabase Realtime callback function signature in `main.dart`.
+    *   **Change**: The function was changed from `(payload, [ref])` to the correct `(payload)`, resolving a runtime error.
+
+### Final Outcome
+The application now has a robust, secure, and real-time maintenance mode system. All sensitive keys are also secured outside of the version-controlled source code, following best practices.

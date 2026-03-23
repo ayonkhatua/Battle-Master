@@ -1,39 +1,99 @@
+import 'package:battle_master/screens/maintenance_screen.dart';
+import 'package:battle_master/screens/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // 🔥 1. dotenv package import kiya
 
-// Yahan humne AuthCheckScreen ko import kiya hai
-import 'package:battle_master/screens/auth_check_screen.dart'; 
+// Global navigator key to access the navigator from anywhere
+final navigatorKey = GlobalKey<NavigatorState>();
 
-Future<void> main() async { // 🔥 2. void ko Future<void> kiya
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 3. Supabase initialize karne se pehle .env file ko load karein
+  // Load environment variables from .env file
   await dotenv.load(fileName: ".env");
 
-  // 🔥 4. Hardcoded keys hata kar .env file se variables fetch kiye
+  // Initialize Supabase
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  runApp(const MyApp());
+  // Fetch the initial maintenance state before running the app
+  bool isMaintenanceOn = false;
+  try {
+    final response = await Supabase.instance.client
+        .from('app_config')
+        .select('is_maintenance_on')
+        .eq('id', 1)
+        .single();
+    isMaintenanceOn = response['is_maintenance_on'] ?? false;
+  } catch (e) {
+    debugPrint("Error fetching maintenance status: $e");
+    isMaintenanceOn = false;
+  }
+
+  // A local variable to track the current status and prevent redundant navigations
+  bool currentStatus = isMaintenanceOn;
+
+  //
+  // FINAL CORRECT IMPLEMENTATION FOR supabase_flutter v2.x
+  // This uses the modern, stream-based approach which is the correct way.
+  //
+  final channel = Supabase.instance.client.channel('public:app_config');
+  final stream = channel.stream(primaryKey: ['id']).eq('id', 1);
+
+  stream.listen((List<Map<String, dynamic>> data) {
+    if (data.isNotEmpty) {
+      final newRecord = data.first;
+      final newStatus = newRecord['is_maintenance_on'] as bool? ?? false;
+
+      // Only navigate if the status has actually changed
+      if (newStatus != currentStatus) {
+        currentStatus = newStatus; // Update the local status
+
+        if (newStatus == true) {
+          navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const MaintenanceScreen()),
+            (route) => false,
+          );
+        } else {
+          navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      }
+    }
+  });
+
+  // Subscribe to the channel to start listening.
+  channel.subscribe();
+
+
+  runApp(MyApp(isMaintenanceOn: isMaintenanceOn));
+}
+
+extension on RealtimeChannel {
+  stream({required List<String> primaryKey}) {}
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool isMaintenanceOn;
+  const MyApp({super.key, required this.isMaintenanceOn});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Battle Master',
-      debugShowCheckedModeBanner: false, 
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1e3c72)), 
-        useMaterial3: true,
+        primarySwatch: Colors.yellow,
+        scaffoldBackgroundColor: const Color(0xFF111827),
+        fontFamily: 'Roboto',
       ),
-      // Ab app khulte hi pehle AuthCheck chalega
-      home: const AuthCheckScreen(), 
+      navigatorKey: navigatorKey, 
+      home: isMaintenanceOn ? const MaintenanceScreen() : const LoginScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
