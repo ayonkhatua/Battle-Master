@@ -7,7 +7,7 @@ import 'package:battle_master/screens/wallet_screen.dart';
 import 'package:battle_master/screens/statistics_screen.dart';
 import 'package:battle_master/screens/my_tournaments_screen.dart';
 import 'package:battle_master/screens/upcoming_screen.dart';
-import 'package:battle_master/screens/game_lobby_screen.dart';
+import 'package:battle_master/screens/game_screen.dart'; // TournamentScreen yahan se aayegi
 import 'package:battle_master/screens/login_screen.dart';
 import 'package:battle_master/pages/faq_page.dart';
 import 'package:battle_master/pages/privacy_policy_page.dart';
@@ -284,7 +284,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildGameBox(String title, String imagePath) {
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => GameLobbyScreen(gameTitle: title))),
+      // Seedha TournamentScreen par bhej rahe hain aur game ka naam (mode) pass kar rahe hain
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TournamentScreen(mode: title))),
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF1f2937),

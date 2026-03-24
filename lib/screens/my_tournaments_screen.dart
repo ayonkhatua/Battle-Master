@@ -34,8 +34,8 @@ class _MyTournamentsScreenState extends State<MyTournamentsScreen> {
           .select('''
             id,
             tournaments (
-              name,
-              game,
+              title,
+              mode,
               status
             )
           ''')
@@ -116,8 +116,8 @@ class _MyTournamentsScreenState extends State<MyTournamentsScreen> {
         // Safety check agar tournament delete ho gaya ho par record reh gaya ho
         if (tournamentData == null) return const SizedBox.shrink();
 
-        final name = tournamentData['name'] ?? 'Unknown';
-        final game = tournamentData['game'] ?? 'Unknown';
+        final name = tournamentData['title'] ?? 'Unknown';
+        final game = tournamentData['mode'] ?? 'Unknown';
         final status = tournamentData['status'] ?? 'completed';
 
         return Container(

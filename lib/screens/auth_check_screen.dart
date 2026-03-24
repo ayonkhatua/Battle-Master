@@ -2,6 +2,7 @@ import 'package:battle_master/screens/home_screen.dart';
 import 'package:battle_master/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:battle_master/screens/blocked_screen.dart';
 
 // ⚠️ ZAROORI KAAM: 
 // Agar aapke Login aur Home screen ka naam kuch aur hai, toh yahan sahi file import karna
@@ -56,7 +57,11 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
       // 3. Blocked Check
       if (status == 'blocked') {
         await client.auth.signOut(); // User ko logout kar do
-        _goToLogin(message: "❌ Your account has been suspended by Admin.");
+        
+        // Agar app open karte waqt hi user blocked hai, toh seedha BlockedScreen par bhejo
+        if (mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const BlockedScreen()));
+        }
       } else {
         // Sab sahi hai, Home Screen par bhejo
         _goToHome();

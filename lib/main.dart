@@ -4,6 +4,7 @@ import 'package:battle_master/screens/auth_check_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:battle_master/services/user_status_service.dart';
 
 // Global navigator key to access the navigator from anywhere
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -19,6 +20,15 @@ Future<void> main() async {
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
+
+  // 🔥 User ka login status monitor karo for instant block logic
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final AuthChangeEvent event = data.event;
+    if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.initialSession) {
+      // Jaise hi user login ho ya app start ho aur user logged in ho, block listener start kar do
+      UserStatusService.startListening(navigatorKey);
+    }
+  });
 
   // Fetch the initial maintenance state before running the app
   bool isMaintenanceOn = false;

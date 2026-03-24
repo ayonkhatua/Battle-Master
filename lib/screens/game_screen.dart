@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:battle_master/screens/rules_screen.dart'; // Rules screen import
 
 class TournamentScreen extends StatefulWidget {
   final String mode; // e.g., "Battle Royale", "Clash Squad"
@@ -27,11 +28,11 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
   Future<void> _fetchTournaments() async {
     try {
-      // Supabase query: Fetching tournaments and counting filled spots from user_tournaments
+      // Supabase query: Fetching tournaments based on mode
       final response = await Supabase.instance.client
           .from('tournaments')
-          .select('*, user_tournaments(count)') 
-          .eq('mode', widget.mode)
+          .select('*') // Nested relation hata diya, error isi se aa raha tha
+          .ilike('mode', widget.mode) // ilike case-insensitive search karta hai
           .order('time', ascending: true);
 
       final now = DateTime.now();
@@ -50,17 +51,19 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
         int totalSlots = slots * squadSize;
         
-        // Extracting count from the nested relation
-        int filled = 0;
-        if (row['user_tournaments'] != null && row['user_tournaments'].isNotEmpty) {
-           filled = row['user_tournaments'][0]['count'] ?? 0;
-        }
+        // Seedha tournaments table ke 'filled' column ko use kar rahe hain
+        int filled = row['filled'] ?? 0;
 
         double progress = totalSlots > 0 ? (filled / totalSlots) : 0;
         int spotsLeft = totalSlots - filled;
         bool isFull = filled >= totalSlots;
 
-        DateTime matchTime = DateTime.parse(row['time']);
+        DateTime matchTime;
+        try {
+          matchTime = DateTime.parse(row['time'].toString());
+        } catch (e) {
+          matchTime = DateTime.now(); // Agar time format galat hua toh app crash nahi hoga
+        }
         
         // Preparing the formatted map
         Map<String, dynamic> matchData = {
@@ -155,8 +158,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
     return GestureDetector(
       onTap: () {
-        // TODO: Navigate to Rules or Result Details screen
-        // Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tid: item['id'])));
+        // Navigate to Rules screen
+        Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: item['id'])));
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
@@ -174,7 +177,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
               height: 160,
               width: double.infinity,
               color: Colors.grey[800],
-              child: item['image_url'] != null 
+              child: item['image_url'] != null && item['image_url'].toString().isNotEmpty
                   ? Image.network(item['image_url'], fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.image, color: Colors.white54, size: 50))
                   : const Icon(Icons.image, color: Colors.white54, size: 50),
             ),
@@ -248,7 +251,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         ),
                         onPressed: item['isFull'] ? null : () {
-                          // TODO: Handle Join logic
+                          // Join par click karne se seedha RulesScreen par bhejenge
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: item['id'])));
                         },
                         child: Text(
                           item['isFull'] ? "FULL" : "JOIN",

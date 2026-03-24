@@ -44,7 +44,7 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
       
       final response = await Supabase.instance.client
           .from('tournaments')
-          .select('*, user_tournaments(count)')
+          .select('*') // Yahan se bhi nested count hata diya gaya hai
           .inFilter('id', joinedTids) // Sirf joined tournaments
           .gt('time', now) // Sirf future wale (Upcoming)
           .order('time', ascending: true);
@@ -61,10 +61,8 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
 
         int totalSlots = slots * squadSize;
         
-        int filled = 0;
-        if (row['user_tournaments'] != null && row['user_tournaments'].isNotEmpty) {
-           filled = row['user_tournaments'][0]['count'] ?? 0;
-        }
+        // Seedha tournaments table ke 'filled' column ko use karenge
+        int filled = row['filled'] ?? 0;
 
         double progress = totalSlots > 0 ? (filled / totalSlots) : 0;
         int spotsLeft = totalSlots - filled;
