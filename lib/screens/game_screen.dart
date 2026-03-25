@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:battle_master/screens/rules_screen.dart'; // Rules screen import
+import 'package:battle_master/screens/choose_slot_screen.dart';
 
 class TournamentScreen extends StatefulWidget {
   final String mode; // e.g., "Battle Royale", "Clash Squad"
@@ -251,8 +252,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         ),
                         onPressed: item['isFull'] ? null : () {
-                          // Join par click karne se seedha RulesScreen par bhejenge
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: item['id'])));
+                          // Join par click karne se seedha ChooseSlotScreen par bhejenge
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => ChooseSlotScreen(tournamentId: item['id'])));
                         },
                         child: Text(
                           item['isFull'] ? "FULL" : "JOIN",

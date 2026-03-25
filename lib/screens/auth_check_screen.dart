@@ -56,8 +56,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
 
       // 3. Blocked Check
       if (status == 'blocked') {
-        await client.auth.signOut(); // User ko logout kar do
-        
         // Agar app open karte waqt hi user blocked hai, toh seedha BlockedScreen par bhejo
         if (mounted) {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const BlockedScreen()));

@@ -48,37 +48,36 @@ Future<void> main() async {
   bool currentStatus = isMaintenanceOn;
 
   //
-  // FINAL CORRECT IMPLEMENTATION FOR supabase_flutter v2.x
-  // This uses the modern, stream-based approach which is the correct way.
-  //
   Supabase.instance.client
-      .from('app_config')
-      .stream(primaryKey: ['id'])
-      .eq('id', 1)
-      .listen((List<Map<String, dynamic>> data) {
-    if (data.isNotEmpty) {
-      final newRecord = data.first;
-      final newStatus = newRecord['is_maintenance_on'] as bool? ?? false;
+      .channel('public:app_config')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'app_config',
+        callback: (payload) {
+          final newStatus = payload.newRecord['is_maintenance_on'] == true;
 
-      // Only navigate if the status has actually changed
-      if (newStatus != currentStatus) {
-        currentStatus = newStatus; // Update the local status
+          // Only navigate if the status has actually changed
+          if (newStatus != currentStatus) {
+            currentStatus = newStatus; // Update the local status
 
-        if (newStatus == true) {
-          navigatorKey.currentState?.pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const MaintenanceScreen()),
-            (route) => false,
-          );
-        } else {
-          // 🔥 YAHAN UPDATE HUA HAI: Ab ye sidha Login par nahi, AuthCheck par jayega
-          navigatorKey.currentState?.pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
-            (route) => false,
-          );
-        }
-      }
-    }
-  });
+            if (newStatus == true) {
+              navigatorKey.currentState?.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const MaintenanceScreen()),
+                (route) => false,
+              );
+            } else {
+              // Maintenance OFF hote hi AuthCheckScreen jayega
+              // Jo check karega ki user login hai ya nahi
+              navigatorKey.currentState?.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
+                (route) => false,
+              );
+            }
+          }
+        },
+      )
+      .subscribe();
 
   runApp(MyApp(isMaintenanceOn: isMaintenanceOn));
 }
