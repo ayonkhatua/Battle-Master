@@ -42,9 +42,10 @@ class _HomeScreenState extends State<HomeScreen> {
           .select('image_url, action_link')
           .eq('is_active', true)
           .order('created_at', ascending: false);
+      debugPrint("Banners fetched successfully: $response");
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      print("Error fetching banners: $e");
+      debugPrint("Error fetching banners: $e");
       return [];
     }
   }
@@ -193,7 +194,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const SizedBox.shrink(); // Hide if no banners are active
+                // Agar table mein data nahi hoga to ab ye box aayega (Debugging ke liye)
+                return Container(
+                  height: 160,
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(12)),
+                  child: const Center(
+                    child: Text("No Active Banners Found in DB", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+                  ),
+                );
               }
               
               final banners = snapshot.data!;

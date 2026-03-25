@@ -35,43 +35,44 @@ class _ConfirmIGNScreenState extends State<ConfirmIGNScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
+    // 1. Slots Data ko pehle generate karo, taaki DB fetch fail hone par bhi UI blank na ho
+    for (int i = 0; i < widget.selectedSlots.length; i++) {
+      String slotStr = widget.selectedSlots[i];
+      String number = slotStr;
+      String position = 'A';
+
+      if (slotStr.contains('-')) {
+        var parts = slotStr.split('-');
+        number = parts[0];
+        position = parts[1];
+      }
+
+      _slotsData.add({
+        'slot_number': int.parse(number),
+        'position': position,
+        'ign': 'Player ${i + 1}', // Default IGN
+      });
+    }
+
     try {
-      // 1. Fetch User Wallet
+      // 2. Fetch User Wallet (maybeSingle se app crash nahi hogi)
       final userRes = await Supabase.instance.client
           .from('users')
           .select('wallet_balance')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
-      // 2. Fetch Tournament Entry Fee
+      // 3. Fetch Tournament Entry Fee
       final tRes = await Supabase.instance.client
           .from('tournaments')
           .select('entry_fee')
           .eq('id', widget.tournamentId)
-          .single();
+          .maybeSingle();
 
-      _userWallet = userRes['wallet_balance'] ?? 0;
-      _entryFee = tRes['entry_fee'] ?? 0;
+      // Safe parsing to prevent type casting errors (ab kabhi 0 wala issue nahi ayega)
+      _userWallet = double.tryParse(userRes?['wallet_balance']?.toString() ?? '0')?.toInt() ?? 0;
+      _entryFee = double.tryParse(tRes?['entry_fee']?.toString() ?? '0')?.toInt() ?? 0;
       _totalFee = _entryFee * widget.selectedSlots.length;
-
-      // 3. Prepare Slots Data based on selected slots
-      for (int i = 0; i < widget.selectedSlots.length; i++) {
-        String slotStr = widget.selectedSlots[i];
-        String number = slotStr;
-        String position = 'A';
-
-        if (slotStr.contains('-')) {
-          var parts = slotStr.split('-');
-          number = parts[0];
-          position = parts[1];
-        }
-
-        _slotsData.add({
-          'slot_number': int.parse(number),
-          'position': position,
-          'ign': 'Player ${i + 1}', // Default IGN
-        });
-      }
 
       setState(() => _isLoading = false);
     } catch (e) {
@@ -147,13 +148,20 @@ class _ConfirmIGNScreenState extends State<ConfirmIGNScreen> {
         await Supabase.instance.client.from('user_tournaments').insert({
           'user_id': userId,
           'tournament_id': widget.tournamentId,
-          'slot_no': slot['slot_number'],
-          'position': slot['position'],
-          'ign': slot['ign'],
+          'slot_number': slot['slot_number'], // Schema column ke mutabik update kiya
+          'position': slot['position'],       // SQL add karne ke baad chalega
+          'user_ign': slot['ign'],            // Schema column ke mutabik update kiya
         });
       }
 
-      // 3. Create a transaction record (optional but good for history)
+      // 3. Jaise hi permanent booking ho jaye, apne temporary locks delete kardo
+      await Supabase.instance.client
+          .from('slot_locks')
+          .delete()
+          .eq('tournament_id', widget.tournamentId)
+          .eq('user_id', userId);
+
+      // 4. Create a transaction record (optional but good for history)
       await Supabase.instance.client.from('transactions').insert({
         'user_id': userId,
         'amount': _totalFee,
@@ -162,12 +170,18 @@ class _ConfirmIGNScreenState extends State<ConfirmIGNScreen> {
         'status': 'success',
       });
 
+      // 5. Tournament ka "filled" spots update karo (Taaki spots_left theek dikhaye)
+      final tData = await Supabase.instance.client.from('tournaments').select('filled').eq('id', widget.tournamentId).single();
+      int currentFilled = tData['filled'] ?? 0;
+      await Supabase.instance.client.from('tournaments').update({'filled': currentFilled + _slotsData.length}).eq('id', widget.tournamentId);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Match Joined Successfully!"), backgroundColor: Colors.green),
       );
 
-      // TODO: Wapas Home Screen bhej do
-      // Navigator.popUntil(context, (route) => route.isFirst);
+      if (mounted) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+      }
 
     } catch (e) {
       print("Join error: $e");
