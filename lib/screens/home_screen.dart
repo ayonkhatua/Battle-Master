@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 
 // Screens for navigation
 import 'package:battle_master/screens/profile_screen.dart';
@@ -25,11 +26,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 1; // Default to 'Play' tab
   Future<Map<String, dynamic>>? _userDataFuture;
+  Future<List<Map<String, dynamic>>>? _bannersFuture;
 
   @override
   void initState() {
     super.initState();
     _userDataFuture = _fetchUserData();
+    _bannersFuture = _fetchBanners();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchBanners() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('app_banners')
+          .select('image_url, action_link')
+          .eq('is_active', true)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error fetching banners: $e");
+      return [];
+    }
   }
 
   Future<Map<String, dynamic>> _fetchUserData() async {
@@ -165,6 +182,66 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // --- BANNER SYSTEM ---
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _bannersFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: 20),
+                  child: SizedBox(height: 160, child: Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))),
+                );
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const SizedBox.shrink(); // Hide if no banners are active
+              }
+              
+              final banners = snapshot.data!;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: CarouselSlider(
+                  options: CarouselOptions(
+                    height: 160.0,
+                    autoPlay: true,
+                    enlargeCenterPage: true,
+                    viewportFraction: 1.0, // Take full width
+                    autoPlayInterval: const Duration(seconds: 4), // 4 Seconds sliding
+                  ),
+                  items: banners.map((banner) {
+                    String imageUrl = banner['image_url'] ?? '';
+                    // Support both Direct URL and raw file name from bucket
+                    if (!imageUrl.startsWith('http') && imageUrl.isNotEmpty) {
+                      imageUrl = Supabase.instance.client.storage.from('Battle Master Banner').getPublicUrl(imageUrl);
+                    }
+
+                    return GestureDetector(
+                      onTap: () {
+                        final link = banner['action_link'];
+                        if (link != null && link.toString().isNotEmpty) {
+                          // Handle action_link navigation here if needed
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Link Action: $link")));
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: const Color(0xFF1f2937)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 40)),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
+          ),
+          // --- END BANNER SYSTEM ---
+
           // UPDATED: Title Centered
           const Center(
             child: Text("My Matches", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))

@@ -1,6 +1,7 @@
 import 'package:battle_master/screens/maintenance_screen.dart';
 // 🔥 Yahan LoginScreen hata kar AuthCheckScreen import kiya hai
 import 'package:battle_master/screens/auth_check_screen.dart'; 
+import 'package:battle_master/screens/update_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -30,61 +31,81 @@ Future<void> main() async {
     }
   });
 
-  // Fetch the initial maintenance state before running the app
+  // Fetch the initial app config state before running the app
   bool isMaintenanceOn = false;
+  bool isUpdateAvailable = false;
+  String appLink = '';
+
   try {
     final response = await Supabase.instance.client
         .from('app_config')
-        .select('is_maintenance_on')
+        .select()
         .eq('id', 1)
-        .single();
-    isMaintenanceOn = response['is_maintenance_on'] ?? false;
+        .maybeSingle();
+        
+    if (response != null) {
+      isMaintenanceOn = response['is_maintenance_on'] ?? false;
+      isUpdateAvailable = response['is_update_available'] ?? false;
+      appLink = response['app_link'] ?? '';
+    }
   } catch (e) {
-    debugPrint("Error fetching maintenance status: $e");
-    isMaintenanceOn = false;
+    debugPrint("Error fetching app config: $e");
   }
 
-  // A local variable to track the current status and prevent redundant navigations
-  bool currentStatus = isMaintenanceOn;
+  // Determine Initial Screen based on priority
+  Widget initialScreen = const AuthCheckScreen();
+  if (isUpdateAvailable) {
+    initialScreen = UpdateScreen(appLink: appLink);
+  } else if (isMaintenanceOn) {
+    initialScreen = const MaintenanceScreen();
+  }
 
-  //
+  // Realtime Database Listener
   Supabase.instance.client
       .channel('public:app_config')
       .onPostgresChanges(
-        event: PostgresChangeEvent.update,
+        event: PostgresChangeEvent.all,
         schema: 'public',
         table: 'app_config',
         callback: (payload) {
-          final newStatus = payload.newRecord['is_maintenance_on'] == true;
+          final config = payload.newRecord;
+          if (config.isEmpty) return;
 
-          // Only navigate if the status has actually changed
-          if (newStatus != currentStatus) {
-            currentStatus = newStatus; // Update the local status
+          final newMaintenanceStatus = config['is_maintenance_on'] ?? false;
+          final newUpdateStatus = config['is_update_available'] ?? false;
+          final link = config['app_link'] ?? '';
 
-            if (newStatus == true) {
-              navigatorKey.currentState?.pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const MaintenanceScreen()),
-                (route) => false,
-              );
-            } else {
-              // Maintenance OFF hote hi AuthCheckScreen jayega
-              // Jo check karega ki user login hai ya nahi
-              navigatorKey.currentState?.pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
-                (route) => false,
-              );
-            }
+          // Priority 1: Force Update
+          if (newUpdateStatus) {
+            navigatorKey.currentState?.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => UpdateScreen(appLink: link)),
+              (route) => false,
+            );
+          } 
+          // Priority 2: Maintenance Mode
+          else if (newMaintenanceStatus) {
+            navigatorKey.currentState?.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const MaintenanceScreen()),
+              (route) => false,
+            );
+          } 
+          // Priority 3: Normal Status (All clear)
+          else {
+            navigatorKey.currentState?.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
+              (route) => false,
+            );
           }
         },
       )
       .subscribe();
 
-  runApp(MyApp(isMaintenanceOn: isMaintenanceOn));
+  runApp(MyApp(initialScreen: initialScreen));
 }
 
 class MyApp extends StatelessWidget {
-  final bool isMaintenanceOn;
-  const MyApp({super.key, required this.isMaintenanceOn});
+  final Widget initialScreen;
+  const MyApp({super.key, required this.initialScreen});
 
   @override
   Widget build(BuildContext context) {
@@ -96,8 +117,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Roboto',
       ),
       navigatorKey: navigatorKey, 
-      // 🔥 YAHAN BHI UPDATE HUA HAI: Default home ab AuthCheckScreen hai
-      home: isMaintenanceOn ? const MaintenanceScreen() : const AuthCheckScreen(),
+      home: initialScreen,
       debugShowCheckedModeBanner: false,
     );
   }
