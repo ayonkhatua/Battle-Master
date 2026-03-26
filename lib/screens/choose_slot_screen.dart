@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:battle_master/screens/confirm_ign_screen.dart'; // Apna sahi path dalna
+import 'package:battle_master/screens/rules_screen.dart';
 
 class ChooseSlotScreen extends StatefulWidget {
   final int tournamentId;
@@ -54,8 +54,9 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
       _totalSlots = tRes['slots'] ?? 0;
       
       // Tournament type ke hisaab se limit set karo
-      if (_type == 'solo') _maxSlotsAllowed = 1;
-      else if (_type == 'duo') _maxSlotsAllowed = 2;
+      if (_type == 'solo') {
+        _maxSlotsAllowed = 1;
+      } else if (_type == 'duo') _maxSlotsAllowed = 2;
       else if (_type == 'squad') _maxSlotsAllowed = 4;
 
       // 2. Fetch Booked Slots
@@ -92,7 +93,6 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
           .gte('locked_at', threeMinsAgo);
 
       Set<String> tempLocked = {};
-      final myUserId = Supabase.instance.client.auth.currentUser?.id;
       for (var row in locksRes as List<dynamic>) {
         if (row['user_id'] != myUserId) {
           tempLocked.add(row['slot_key']); // Dusro ke locks save karo UI disable karne ke liye
@@ -183,10 +183,10 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
 
       setState(() => _isProcessing = false);
     
-      // 5. Navigate to Confirm Screen
+      // 5. Navigate to Rules Screen
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => ConfirmIGNScreen(tournamentId: widget.tournamentId, selectedSlots: _selectedSlots.toList())),
+        MaterialPageRoute(builder: (context) => RulesScreen(tournamentId: widget.tournamentId)),
       );
 
       // 6. Agar user Back daba kar aayega (pay nahi kiya), to lock khol do aur grid refresh karo
