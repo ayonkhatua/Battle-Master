@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:battle_master/screens/rules_screen.dart';
+import 'package:battle_master/screens/confirm_ign_screen.dart'; // Nayi payment screen ka sahi path dena
 
 class ChooseSlotScreen extends StatefulWidget {
   final int tournamentId;
@@ -15,16 +15,13 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
   bool _isLoading = true;
   String _type = 'solo';
   int _totalSlots = 0;
+  int _entryFee = 0; // Naya variable entry fee ke liye
   int _maxSlotsAllowed = 1;
   int _myAlreadyBookedCount = 0;
+  String? _imageUrl;
   
-  // Booked slots ko store karne ke liye map: {slot_no: ['A', 'B']}
   Map<int, List<String>> _bookedSlots = {};
-  
-  // User ne jo slots select kiye hain unki list: ['1-A', '2-C']
   final Set<String> _selectedSlots = {};
-  
-  // Doosre users ke temporarily locked slots
   Set<String> _lockedSlots = {}; 
   bool _isProcessing = false;
 
@@ -36,24 +33,25 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
   
   @override
   void dispose() {
-    // Agar user bina pay kiye screen band kar de, toh uske locks turant release ho jayenge
     _releaseMyLocks();
     super.dispose();
   }
 
   Future<void> _fetchSlotData() async {
     try {
-      // 1. Fetch Tournament details
+      // 1. Fetch Tournament details (Entry Fee bhi select kiya hai ab)
       final tRes = await Supabase.instance.client
           .from('tournaments')
-          .select('type, slots')
+          .select('type, slots, entry_fee, image_url')
           .eq('id', widget.tournamentId)
           .single();
 
       _type = tRes['type']?.toString().toLowerCase() ?? 'solo';
       _totalSlots = tRes['slots'] ?? 0;
+      // Entry fee ko int mein convert kiya
+      _entryFee = int.tryParse(tRes['entry_fee'].toString()) ?? 0; 
+      _imageUrl = tRes['image_url']?.toString();
       
-      // Tournament type ke hisaab se limit set karo
       if (_type == 'solo') {
         _maxSlotsAllowed = 1;
       } else if (_type == 'duo') _maxSlotsAllowed = 2;
@@ -62,7 +60,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
       // 2. Fetch Booked Slots
       final bookedRes = await Supabase.instance.client
           .from('user_tournaments')
-          .select('slot_number, position, user_id') // User id add kiya taaki uske existing slots gin sake
+          .select('slot_number, position, user_id')
           .eq('tournament_id', widget.tournamentId);
 
       Map<int, List<String>> tempBooked = {};
@@ -75,7 +73,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
         String? rUserId = row['user_id'];
         
         if (rUserId != null && rUserId == myUserId) {
-          tempMyBooked++; // User ne kitne slots liye wo calculate ho raha hai
+          tempMyBooked++; 
         }
         
         if (!tempBooked.containsKey(slotNo)) {
@@ -84,7 +82,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
         tempBooked[slotNo]!.add(pos);
       }
 
-      // 3. Fetch Locked Slots (Temporarily blocked by others within last 3 mins)
+      // 3. Fetch Locked Slots
       final threeMinsAgo = DateTime.now().toUtc().subtract(const Duration(minutes: 3)).toIso8601String();
       final locksRes = await Supabase.instance.client
           .from('slot_locks')
@@ -95,7 +93,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
       Set<String> tempLocked = {};
       for (var row in locksRes as List<dynamic>) {
         if (row['user_id'] != myUserId) {
-          tempLocked.add(row['slot_key']); // Dusro ke locks save karo UI disable karne ke liye
+          tempLocked.add(row['slot_key']); 
         }
       }
 
@@ -111,7 +109,6 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
     }
   }
 
-  // Apne slots ko release karne ka logic
   void _releaseMyLocks() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId != null) {
@@ -123,7 +120,9 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
     }
   }
 
-  // Lock slots and Next page logic
+  // ==========================================
+  // 🚀 GO TO NEXT (Now pointing to Payment Screen)
+  // ==========================================
   Future<void> _goToNext() async {
     if (_selectedSlots.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -137,14 +136,12 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
     final threeMinsAgo = DateTime.now().toUtc().subtract(const Duration(minutes: 3)).toIso8601String();
 
     try {
-      // 1. Delete globally expired locks for this tournament to free up unique spots
       await Supabase.instance.client
           .from('slot_locks')
           .delete()
           .eq('tournament_id', widget.tournamentId)
           .lt('locked_at', threeMinsAgo);
 
-      // 2. Check if selected slots are already locked by someone else right now
       final existingLocks = await Supabase.instance.client
           .from('slot_locks')
           .select('slot_key, user_id')
@@ -159,19 +156,15 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
       }
 
       if (conflict) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("⚠️ Some of your slots were just taken! Please select different ones."), backgroundColor: Colors.orange),
-        );
-        await _fetchSlotData(); // Refresh grid
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Slot just taken!"), backgroundColor: Colors.orange));
+        await _fetchSlotData();
         setState(() => _isProcessing = false);
         return;
       }
 
-      // 3. Clear any previous uncompleted locks by this user for this tournament
       await Supabase.instance.client.from('slot_locks').delete()
           .eq('tournament_id', widget.tournamentId).eq('user_id', userId);
 
-      // 4. Lock the newly selected slots
       for (String slot in _selectedSlots) {
         await Supabase.instance.client.from('slot_locks').insert({
           'tournament_id': widget.tournamentId,
@@ -183,32 +176,35 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
 
       setState(() => _isProcessing = false);
     
-      // 5. Navigate to Rules Screen
+      // 🔥 CHANGE: Ab ye ConfirmJoinScreen par jayega payment ke liye
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => RulesScreen(tournamentId: widget.tournamentId)),
+        MaterialPageRoute(
+          builder: (context) => ConfirmJoinScreen(
+            tournamentId: widget.tournamentId,
+            selectedSlots: _selectedSlots.toList(),
+            entryFee: _entryFee,
+          ),
+        ),
       );
 
-      // 6. Agar user Back daba kar aayega (pay nahi kiya), to lock khol do aur grid refresh karo
       _releaseMyLocks();
       _fetchSlotData();
 
     } catch (e) {
       print("Locking error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Error processing request. Try again."), backgroundColor: Colors.red));
       setState(() => _isProcessing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Columns (Headers) decide karna
     List<String> headers = ['A'];
     if (_type == 'duo') headers = ['A', 'B'];
     if (_type == 'squad') headers = ['A', 'B', 'C', 'D'];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF111827), // Dark Theme
+      backgroundColor: const Color(0xFF111827),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1f2937),
         title: Text("Choose Slot (${_type.toUpperCase()})", style: const TextStyle(color: Colors.white)),
@@ -218,11 +214,52 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))
           : Column(
               children: [
+                // 1. Banner Image Section (Fixed Size & Fit)
+                if (_imageUrl != null && _imageUrl!.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    height: 230, // Isko 180 se badha kar 230 kar diya
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade900,
+                      // Niche halki shadow taaki info blocks ke sath mix na ho
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 5))
+                      ],
+                    ),
+                    child: Image.network(
+                      _imageUrl!,
+                      width: double.infinity,
+                      fit: BoxFit.cover, // Ye image ko poore box mein stretch/crop karke set karega
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)));
+                      },
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade800,
+                        child: const Icon(Icons.image_not_supported, size: 50, color: Colors.white24),
+                      ),
+                    ),
+                  )
+                else
+                  // Agar image nahi hai toh ek stylish placeholder
+                  Container(
+                    width: double.infinity,
+                    height: 200,
+                    color: const Color(0xFF1f2937),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.sports_esports, size: 60, color: Colors.white24),
+                        SizedBox(height: 10),
+                        Text("No Tournament Image", style: TextStyle(color: Colors.white24)),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 20),
                 const Text("Select Your Slots", style: TextStyle(color: Color(0xFFfacc15), fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 20),
 
-                // Table Layout
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -230,7 +267,6 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                       border: TableBorder.all(color: const Color(0xFF374151), width: 1),
                       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                       children: [
-                        // 1. Table Header Row
                         TableRow(
                           decoration: const BoxDecoration(color: Color(0xFF1f2937)),
                           children: [
@@ -242,16 +278,13 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                           ],
                         ),
 
-                        // 2. Data Rows (Loops from 1 to totalSlots)
                         for (int i = 1; i <= _totalSlots; i++)
                           TableRow(
                             children: [
-                              // Slot Number
                               Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Text("$i", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
                               ),
-                              // Checkboxes for each position
                               ...headers.map((pos) {
                                 bool isBooked = _bookedSlots.containsKey(i) && _bookedSlots[i]!.contains(pos);
                                 String slotKey = "$i-$pos";
@@ -264,21 +297,21 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                                   child: Checkbox(
                                     value: disabled ? true : isSelected,
                                     fillColor: WidgetStateProperty.resolveWith((states) {
-                                      if (isBooked) return Colors.red; // Permanently Booked (Red)
-                                      if (isLocked) return Colors.orange; // Temporarily Locked (Orange)
-                                      if (states.contains(WidgetState.selected)) return const Color(0xFF2563eb); // Selected by user (Blue)
-                                      return Colors.transparent; // Unselected
+                                      if (isBooked) return Colors.red;
+                                      if (isLocked) return Colors.orange;
+                                      if (states.contains(WidgetState.selected)) return const Color(0xFF2563eb);
+                                      return Colors.transparent;
                                     }),
                                     checkColor: Colors.white,
                                     side: const BorderSide(color: Colors.grey),
                                     onChanged: disabled
-                                        ? null // Disabled agar booked ya locked hai
+                                        ? null 
                                         : (bool? val) {
                                             setState(() {
                                               if (val == true) {
                                                 if (_selectedSlots.length + _myAlreadyBookedCount >= _maxSlotsAllowed) {
                                                   ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(content: Text("You already have $_myAlreadyBookedCount slot(s). Max $_maxSlotsAllowed allowed for ${_type.toUpperCase()}!"), backgroundColor: Colors.redAccent),
+                                                    SnackBar(content: Text("Max $_maxSlotsAllowed allowed!")),
                                                   );
                                                   return;
                                                 }
@@ -298,7 +331,6 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                   ),
                 ),
 
-                // Next Button
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(
@@ -312,7 +344,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                       onPressed: _isProcessing ? null : _goToNext,
                       child: _isProcessing 
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text("NEXT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          : const Text("JOIN", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ),
                 ),

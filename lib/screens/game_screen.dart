@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:battle_master/screens/rules_screen.dart'; // Rules screen import
+import 'package:battle_master/screens/rules_screen.dart'; 
 import 'package:battle_master/screens/choose_slot_screen.dart';
 
 class TournamentScreen extends StatefulWidget {
-  final String mode; // e.g., "Battle Royale", "Clash Squad"
+  final String mode;
 
   const TournamentScreen({super.key, required this.mode});
 
@@ -16,10 +16,9 @@ class TournamentScreen extends StatefulWidget {
 class _TournamentScreenState extends State<TournamentScreen> {
   bool _isLoading = true;
   
-  // 3 alag lists banayenge jaisa PHP mein tha
-  List<Map<String, dynamic>> _matches = [];
-  List<Map<String, dynamic>> _ongoing = [];
-  List<Map<String, dynamic>> _results = [];
+  List<Map<String, dynamic>> _matches = []; // Match Tab (Upcoming)
+  List<Map<String, dynamic>> _ongoing = []; // Ongoing Tab
+  List<Map<String, dynamic>> _results = []; // Result Tab (Completed 24h)
 
   @override
   void initState() {
@@ -29,21 +28,20 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
   Future<void> _fetchTournaments() async {
     try {
-      // Supabase query: Fetching tournaments based on mode
       final response = await Supabase.instance.client
           .from('tournaments')
-          .select('*') // Nested relation hata diya, error isi se aa raha tha
-          .ilike('mode', widget.mode) // ilike case-insensitive search karta hai
+          .select('*')
+          .ilike('mode', widget.mode)
           .order('time', ascending: true);
 
-      final now = DateTime.now();
-      
       List<Map<String, dynamic>> tempMatches = [];
       List<Map<String, dynamic>> tempOngoing = [];
       List<Map<String, dynamic>> tempResults = [];
 
+      final now = DateTime.now();
+      final twentyFourHoursAgo = now.subtract(const Duration(hours: 24));
+
       for (var row in response as List<dynamic>) {
-        // PHP ka logic: Solo=1, Duo=2, Squad=4
         int slots = row['slots'] ?? 0;
         String type = (row['type'] ?? '').toString().toLowerCase();
         int squadSize = 1;
@@ -51,22 +49,16 @@ class _TournamentScreenState extends State<TournamentScreen> {
         if (type == 'squad') squadSize = 4;
 
         int totalSlots = slots * squadSize;
-        
-        // Seedha tournaments table ke 'filled' column ko use kar rahe hain
         int filled = row['filled'] ?? 0;
-
         double progress = totalSlots > 0 ? (filled / totalSlots) : 0;
+        if (progress > 1.0) progress = 1.0; 
+        
         int spotsLeft = totalSlots - filled;
         bool isFull = filled >= totalSlots;
 
-        DateTime matchTime;
-        try {
-          matchTime = DateTime.parse(row['time'].toString());
-        } catch (e) {
-          matchTime = DateTime.now(); // Agar time format galat hua toh app crash nahi hoga
-        }
-        
-        // Preparing the formatted map
+        // Fallback times to prevent crashes
+        DateTime matchTime = DateTime.tryParse(row['time'].toString()) ?? now;
+
         Map<String, dynamic> matchData = {
           ...row,
           'totalSlots': totalSlots,
@@ -77,32 +69,43 @@ class _TournamentScreenState extends State<TournamentScreen> {
           'matchTime': matchTime,
         };
 
-        // Classification Logic
-        if (row['winner'] != null && row['winner'].toString().isNotEmpty) {
-          tempResults.add(matchData);
-        } else if (matchTime.isBefore(now)) {
-          tempOngoing.add(matchData);
+        // 🌟 THE AUTOMATIC TIME-BASED SHIFTING LOGIC 🌟
+        
+        bool hasResult = row['status'] == 'completed'; // Admin ne result de diya
+
+        if (hasResult) {
+          // RESULT TAB: Check if within last 24 hours
+          DateTime endTime = DateTime.tryParse(row['end_time'].toString()) ?? matchTime;
+          if (endTime.isAfter(twentyFourHoursAgo)) {
+            tempResults.add(matchData);
+          }
         } else {
-          tempMatches.add(matchData);
+          // Agar result nahi aaya hai, toh TIME check karo
+          if (matchTime.isAfter(now)) {
+            // Start time aage ka hai -> MATCH TAB
+            tempMatches.add(matchData);
+          } else {
+            // Start time aa gaya ya cross ho gaya -> ONGOING TAB
+            tempOngoing.add(matchData);
+          }
         }
       }
 
       setState(() {
         _matches = tempMatches;
         _ongoing = tempOngoing;
-        _results = tempResults;
+        _results = tempResults.reversed.toList(); // Latest result upar
         _isLoading = false;
       });
       
     } catch (e) {
-      print("Error fetching tournaments: $e");
+      print("Error fetching category tournaments: $e");
       setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // DefaultTabController 3 tabs ko manage karta hai. initialIndex: 1 matlab beech wala 'MATCH' tab default khulega.
     return DefaultTabController(
       length: 3,
       initialIndex: 1, 
@@ -110,7 +113,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
         backgroundColor: const Color(0xFF0f172a),
         appBar: AppBar(
           backgroundColor: const Color(0xFF1e293b),
-          title: Text("${widget.mode.toUpperCase()} TOURNAMENTS", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          title: Text("${widget.mode.toUpperCase()} TOURNAMENTS", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           centerTitle: true,
           iconTheme: const IconThemeData(color: Colors.white),
           bottom: const TabBar(
@@ -128,19 +131,22 @@ class _TournamentScreenState extends State<TournamentScreen> {
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))
           : TabBarView(
               children: [
-                _buildList(_ongoing, isResult: false),
-                _buildList(_matches, isResult: false),
-                _buildList(_results, isResult: true),
+                _buildList(_ongoing, isResult: false, isOngoing: true),
+                _buildList(_matches, isResult: false, isOngoing: false),
+                _buildList(_results, isResult: true, isOngoing: false),
               ],
             ),
       ),
     );
   }
 
-  Widget _buildList(List<Map<String, dynamic>> list, {required bool isResult}) {
+  Widget _buildList(List<Map<String, dynamic>> list, {required bool isResult, required bool isOngoing}) {
     if (list.isEmpty) {
-      return const Center(
-        child: Text("No tournaments found.", style: TextStyle(color: Color(0xFF9ca3af), fontSize: 16)),
+      return Center(
+        child: Text(
+          isResult ? "No results in the last 24 hours." : "No tournaments here right now.", 
+          style: const TextStyle(color: Color(0xFF9ca3af), fontSize: 16)
+        ),
       );
     }
 
@@ -148,18 +154,16 @@ class _TournamentScreenState extends State<TournamentScreen> {
       padding: const EdgeInsets.all(15),
       itemCount: list.length,
       itemBuilder: (context, index) {
-        final item = list[index];
-        return _buildCard(item, isResult);
+        return _buildCard(list[index], isResult, isOngoing);
       },
     );
   }
 
-  Widget _buildCard(Map<String, dynamic> item, bool isResult) {
+  Widget _buildCard(Map<String, dynamic> item, bool isResult, bool isOngoing) {
     String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(item['matchTime']);
 
     return GestureDetector(
       onTap: () {
-        // Navigate to Rules screen
         Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: item['id'])));
       },
       child: Container(
@@ -173,7 +177,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image Placeholder (Agar actual image URL ho toh Image.network use karna)
             Container(
               height: 160,
               width: double.infinity,
@@ -198,18 +201,16 @@ class _TournamentScreenState extends State<TournamentScreen> {
                   ),
                   const SizedBox(height: 15),
 
-                  // Details Grid
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildGridItem(isResult ? "Winner" : "Prize", isResult ? (item['winner'] ?? '-') : "💰 ${item['prize_pool']}"),
-                      _buildGridItem(isResult ? "Kills" : "Per Kill", isResult ? (item['winner_kills']?.toString() ?? '-') : "💰 ${item['per_kill']}"),
-                      _buildGridItem(isResult ? "Coins" : "Entry", isResult ? "💰 ${item['winner_coins'] ?? '-'}" : "💰 ${item['entry_fee']}"),
+                      _buildGridItem(isResult ? "Winnings" : "Per Kill", isResult ? "-" : "💰 ${item['per_kill']}"),
+                      _buildGridItem(isResult ? "Coins" : "Entry", isResult ? "-" : "💰 ${item['entry_fee']}"),
                     ],
                   ),
                   const SizedBox(height: 15),
 
-                  // Extra Details Grid
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -220,8 +221,16 @@ class _TournamentScreenState extends State<TournamentScreen> {
                   ),
                   const SizedBox(height: 15),
 
-                  // Slots & Progress Bar (Only show if not a result)
-                  if (!isResult) ...[
+                  if (isResult)
+                    const SizedBox.shrink() 
+                  else if (isOngoing)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFf59e0b), borderRadius: BorderRadius.circular(6)),
+                      child: const Text("MATCH IS LIVE / ONGOING", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    )
+                  else ...[
                     Row(
                       children: [
                         Text("${item['spotsLeft']} Spots Left", style: const TextStyle(fontSize: 12, color: Color(0xFFd1d5db))),
@@ -241,8 +250,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
                       ],
                     ),
                     const SizedBox(height: 15),
-                    
-                    // Join Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -252,11 +259,10 @@ class _TournamentScreenState extends State<TournamentScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         ),
                         onPressed: item['isFull'] ? null : () {
-                          // Join par click karne se seedha ChooseSlotScreen par bhejenge
                           Navigator.push(context, MaterialPageRoute(builder: (_) => ChooseSlotScreen(tournamentId: item['id'])));
                         },
                         child: Text(
-                          item['isFull'] ? "FULL" : "JOIN",
+                          item['isFull'] ? "MATCH FULL" : "JOIN NOW",
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
