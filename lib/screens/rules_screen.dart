@@ -23,7 +23,7 @@ class _RulesScreenState extends State<RulesScreen> {
   
   // Slots Data
   List<Map<String, dynamic>> _mySlots = [];
-  List<Map<String, dynamic>> _allParticipants = []; // Naya list saare participants ke liye
+  List<Map<String, dynamic>> _allParticipants = [];
 
   @override
   void initState() {
@@ -36,39 +36,37 @@ class _RulesScreenState extends State<RulesScreen> {
     if (user == null) return;
 
     try {
-      // 1. Fetch Tournament details
       final tResponse = await Supabase.instance.client
           .from('tournaments')
           .select('*')
           .eq('id', widget.tournamentId)
           .single();
 
-      // 2. Fetch ALL joined slots for this tournament (Participants List ke liye)
       final allParticipantsResponse = await Supabase.instance.client
           .from('user_tournaments')
           .select('id, user_id, slot_number, position, user_ign')
           .eq('tournament_id', widget.tournamentId)
-          .order('slot_number', ascending: true); // Slot 1, 2, 3 ke hisaab se order hoga
+          .order('slot_number', ascending: true);
 
       final participantsList = List<Map<String, dynamic>>.from(allParticipantsResponse);
-      
-      // 3. Filter "My Slots" for the Details Tab
       final myJoinedSlots = participantsList.where((p) => p['user_id'] == user.id).toList();
 
-      setState(() {
-        _tData = tResponse;
-        _roomId = _tData['room_id']?.toString() ?? '';
-        _roomPass = _tData['room_password']?.toString() ?? '';
-        
-        _allParticipants = participantsList;
-        _mySlots = myJoinedSlots;
-        _hasJoined = myJoinedSlots.isNotEmpty;
-        
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _tData = tResponse;
+          _roomId = _tData['room_id']?.toString() ?? '';
+          _roomPass = _tData['room_password']?.toString() ?? '';
+          
+          _allParticipants = participantsList;
+          _mySlots = myJoinedSlots;
+          _hasJoined = myJoinedSlots.isNotEmpty;
+          
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      print("Error fetching details: $e");
-      setState(() => _isLoading = false);
+      debugPrint("Error fetching details: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -116,7 +114,6 @@ class _RulesScreenState extends State<RulesScreen> {
 
         setState(() {
           _mySlots[index]['user_ign'] = result;
-          // Participants list mein bhi update kar do taaki refresh na karna pade
           int pIndex = _allParticipants.indexWhere((p) => p['id'] == recordId);
           if (pIndex != -1) {
             _allParticipants[pIndex]['user_ign'] = result;
@@ -124,7 +121,7 @@ class _RulesScreenState extends State<RulesScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ IGN Updated!"), backgroundColor: Colors.green));
       } catch (e) {
-        print("Update error: $e");
+        debugPrint("Update error: $e");
       }
     }
   }
@@ -138,11 +135,17 @@ class _RulesScreenState extends State<RulesScreen> {
       );
     }
 
-    int totalSlots = _tData['slots'] ?? 0;
-    int filledSlots = _tData['filled'] ?? 0;
-    bool isFull = filledSlots >= totalSlots;
+    // 🌟 FIX: Total capacity calculation added here!
+    int slots = _tData['slots'] ?? 0;
+    String type = (_tData['type'] ?? '').toString().toLowerCase();
+    int squadSize = 1;
+    if (type == 'duo') squadSize = 2;
+    if (type == 'squad') squadSize = 4;
 
-    // DefaultTabController 2 tabs banayega
+    int totalCapacity = slots * squadSize;
+    int filledSlots = _tData['filled'] ?? 0;
+    bool isFull = filledSlots >= totalCapacity;
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -151,7 +154,6 @@ class _RulesScreenState extends State<RulesScreen> {
           backgroundColor: const Color(0xFF1f2937),
           title: Text(_tData['title'] ?? "Match Details", style: const TextStyle(color: Colors.white, fontSize: 18)),
           iconTheme: const IconThemeData(color: Colors.white),
-          // 🌟 NAYA TAB BAR YAHAN HAI 🌟
           bottom: const TabBar(
             indicatorColor: Color(0xFFfacc15),
             labelColor: Color(0xFFfacc15),
@@ -162,22 +164,17 @@ class _RulesScreenState extends State<RulesScreen> {
             ],
           ),
         ),
-        // 🌟 TAB BAR VIEW (Donu screens alag alag handle karega) 🌟
         body: TabBarView(
           children: [
-            _buildDetailsTab(), // Tab 1: Purana saara Details UI
-            _buildParticipantsTab(), // Tab 2: Naya Participants UI
+            _buildDetailsTab(),
+            _buildParticipantsTab(),
           ],
         ),
-        // Bottom Action Bar hamesha dikhega (chahe koi bhi tab open ho)
         bottomNavigationBar: _buildBottomActionBar(isFull),
       ),
     );
   }
 
-  // ==========================================
-  // 🟢 TAB 1: DETAILS & RULES (Purana UI)
-  // ==========================================
   Widget _buildDetailsTab() {
     bool roomSet = _roomId.isNotEmpty && _roomPass.isNotEmpty;
 
@@ -307,9 +304,6 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  // ==========================================
-  // 🔵 TAB 2: PARTICIPANTS LIST (Naya UI)
-  // ==========================================
   Widget _buildParticipantsTab() {
     if (_allParticipants.isEmpty) {
       return const Center(
@@ -328,12 +322,12 @@ class _RulesScreenState extends State<RulesScreen> {
       itemCount: _allParticipants.length,
       itemBuilder: (context, index) {
         final p = _allParticipants[index];
-        bool isMe = p['user_id'] == currentUser?.id; // Check if it's the current user
+        bool isMe = p['user_id'] == currentUser?.id;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: isMe ? const Color(0xFF2563eb).withOpacity(0.2) : const Color(0xFF1f2937), // Apna naam alag color se dikhega
+            color: isMe ? const Color(0xFF2563eb).withOpacity(0.2) : const Color(0xFF1f2937),
             borderRadius: BorderRadius.circular(10),
             border: isMe ? Border.all(color: const Color(0xFF2563eb), width: 1.5) : null,
           ),
@@ -362,9 +356,6 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  // ==========================================
-  // BOTTOM FIXED ACTION BAR
-  // ==========================================
   Widget _buildBottomActionBar(bool isFull) {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -377,22 +368,22 @@ class _RulesScreenState extends State<RulesScreen> {
         child: _hasJoined
             ? ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF374151), disabledBackgroundColor: const Color(0xFF374151), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                onPressed: null, // Disabled
+                onPressed: null,
                 child: const Text("ALREADY JOINED", style: TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.bold)),
               )
             : isFull
                 ? ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF374151), disabledBackgroundColor: const Color(0xFF374151), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                    onPressed: null, // Disabled
+                    onPressed: null,
                     child: const Text("MATCH FULL", style: TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.bold)),
                   )
                 : ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563eb), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), // Blue Join button
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563eb), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => ChooseSlotScreen(tournamentId: widget.tournamentId)),
-                      ).then((_) => _fetchDetails()); // Refresh if user comes back after joining
+                      ).then((_) => _fetchDetails());
                     },
                     child: const Text("JOIN NOW", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),

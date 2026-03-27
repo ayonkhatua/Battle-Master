@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+// Note: Is screen ka naam aur path check kar lena
+import 'package:battle_master/screens/rules_screen.dart'; 
 
 class CompletedScreen extends StatefulWidget {
   const CompletedScreen({super.key});
@@ -21,7 +23,6 @@ class _CompletedScreenState extends State<CompletedScreen> {
 
   Future<void> _fetchCompletedTournaments() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-
     if (userId == null) return;
 
     try {
@@ -29,23 +30,55 @@ class _CompletedScreenState extends State<CompletedScreen> {
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
 
       // 🌟 Supabase '!inner' Join (Game Results) 🌟
-      // Ab hum game_results se data la rahe hain taaki user ki apni winnings dikhein,
-      // Aur date filter lagaya hai taaki 30 din purane matches na dikhein.
       final response = await Supabase.instance.client
           .from('tournaments')
           .select('*, game_results!inner(kills, winnings, is_winner)')
           .eq('game_results.user_id', userId)
           .eq('status', 'completed')
-          .gte('end_time', thirtyDaysAgo) // 1 Month filter
-          .order('end_time', ascending: false); // Jo abhi khatam hua wo upar
+          .gte('end_time', thirtyDaysAgo) 
+          .order('end_time', ascending: false); 
 
-      setState(() {
-        _completedTournaments = List<Map<String, dynamic>>.from(response);
-        _isLoading = false;
-      });
+      // 🌟 DUPLICATE FIX: Duo/Squad matches ke multiple results ko filter karne ke liye 🌟
+      Set<int> seenIds = {};
+      List<Map<String, dynamic>> filteredList = [];
+
+      for (var row in response as List<dynamic>) {
+        int tId = row['id'];
+        
+        // Agar tournament already list mein hai toh skip karo
+        if (seenIds.contains(tId)) continue;
+        
+        seenIds.add(tId);
+        
+        // Agar Duo/Squad hai toh total kills aur winnings ko sum karo
+        int totalKills = 0;
+        int totalWinnings = 0;
+        bool isWinner = false;
+
+        final results = row['game_results'] as List<dynamic>? ?? [];
+        for (var r in results) {
+          totalKills += (r['kills'] as int?) ?? 0;
+          totalWinnings += (r['winnings'] as int?) ?? 0;
+          if (r['is_winner'] == true) isWinner = true; // Agar ek bhi slot jeeta toh winner true
+        }
+
+        // Row update karo
+        row['my_total_kills'] = totalKills;
+        row['my_total_winnings'] = totalWinnings;
+        row['am_i_winner'] = isWinner;
+
+        filteredList.add(row as Map<String, dynamic>);
+      }
+
+      if (mounted) {
+        setState(() {
+          _completedTournaments = filteredList;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print("Error fetching completed tournaments: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -64,7 +97,7 @@ class _CompletedScreenState extends State<CompletedScreen> {
         elevation: 4,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))
           : _completedTournaments.isEmpty
               ? _buildEmptyState()
               : _buildList(),
@@ -87,21 +120,21 @@ class _CompletedScreenState extends State<CompletedScreen> {
       itemBuilder: (context, index) {
         final t = _completedTournaments[index];
         
-        // Supabase nested relation list form mein deta hai, isliye [0]
-        final myResult = (t['game_results'] as List).isNotEmpty ? t['game_results'][0] : null;
-
         String timeString = t['end_time'] ?? t['time'] ?? '';
         String formattedTime = '';
         if (timeString.isNotEmpty) {
-          formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.parse(timeString));
+          formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.parse(timeString).toLocal()); // Local time convert
         }
 
-        // Check if user is winner
-        bool isWinner = myResult != null && myResult['is_winner'] == true;
+        bool isWinner = t['am_i_winner'] ?? false;
+        int myKills = t['my_total_kills'] ?? 0;
+        int myWinnings = t['my_total_winnings'] ?? 0;
 
         return GestureDetector(
           onTap: () {
-            // TODO: Navigate to Result Details Screen
+            // Yahan user Leaderboard dekhne jayega 
+            // Abhi ke liye main isko RulesScreen bhej raha hu (wahan Result tab banane ke baad isko update karenge)
+            Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: t['id'])));
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: 20),
@@ -109,7 +142,6 @@ class _CompletedScreenState extends State<CompletedScreen> {
             decoration: BoxDecoration(
               color: Colors.white, 
               borderRadius: BorderRadius.circular(18),
-              // Agar winner hai toh golden glow, warna normal shadow
               boxShadow: [
                 BoxShadow(
                   color: isWinner ? Colors.amber.withOpacity(0.4) : Colors.black.withOpacity(0.1), 
@@ -117,6 +149,7 @@ class _CompletedScreenState extends State<CompletedScreen> {
                   offset: const Offset(0, 4)
                 )
               ],
+              border: isWinner ? Border.all(color: Colors.amber, width: 1.5) : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,14 +169,11 @@ class _CompletedScreenState extends State<CompletedScreen> {
                   ],
                 ),
                 const SizedBox(height: 5),
-                Text(
-                  "Ended: $formattedTime",
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF6b7280)),
-                ),
+                Text("Ended: $formattedTime", style: const TextStyle(fontSize: 14, color: Color(0xFF6b7280))),
                 
                 const SizedBox(height: 16),
                 
-                // 🚀 PERSONAL RESULT GRID (Kills & Winnings)
+                // 🚀 PERSONAL RESULT GRID (Sum of Kills & Winnings if Duo/Squad)
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
@@ -154,9 +184,9 @@ class _CompletedScreenState extends State<CompletedScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildGridItem("My Kills", "🔫 ${myResult?['kills'] ?? 0}"),
+                      _buildGridItem("My Kills", "🔫 $myKills"),
                       Container(height: 30, width: 1, color: Colors.grey.shade300), // Divider
-                      _buildGridItem("My Winnings", "🪙 ${myResult?['winnings'] ?? 0}", color: Colors.green.shade700),
+                      _buildGridItem("My Winnings", "🪙 $myWinnings", color: Colors.green.shade700),
                     ],
                   ),
                 ),
@@ -185,10 +215,7 @@ class _CompletedScreenState extends State<CompletedScreen> {
     return Expanded(
       child: Column(
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af), fontWeight: FontWeight.bold),
-          ),
+          Text(title, style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af), fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(
             value,
