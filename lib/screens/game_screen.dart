@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'dart:async'; // Auto-refresh ke liye zaroori hai
+import 'dart:async'; 
 import 'package:battle_master/screens/rules_screen.dart'; 
 
 class TournamentScreen extends StatefulWidget {
@@ -15,18 +15,18 @@ class TournamentScreen extends StatefulWidget {
 
 class _TournamentScreenState extends State<TournamentScreen> {
   bool _isLoading = true;
-  Timer? _refreshTimer; // Auto-refresh timer
+  Timer? _refreshTimer; 
   
-  List<Map<String, dynamic>> _matches = []; // Match Tab (Upcoming)
-  List<Map<String, dynamic>> _ongoing = []; // Ongoing Tab
-  List<Map<String, dynamic>> _results = []; // Result Tab (Completed 24h)
+  List<Map<String, dynamic>> _matches = []; 
+  List<Map<String, dynamic>> _ongoing = []; 
+  List<Map<String, dynamic>> _results = []; 
 
   @override
   void initState() {
     super.initState();
     _fetchTournaments();
     
-    // ⏳ AUTO REFRESH: Har 1 minute mein list auto-update hogi
+    // ⏳ AUTO REFRESH
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) {
         _fetchTournaments(silentRefresh: true);
@@ -36,7 +36,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
   @override
   void dispose() {
-    _refreshTimer?.cancel(); // Memory leak rokne ke liye
+    _refreshTimer?.cancel(); 
     super.dispose();
   }
 
@@ -54,7 +54,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
       List<Map<String, dynamic>> tempOngoing = [];
       List<Map<String, dynamic>> tempResults = [];
 
-      // 🌍 GLOBAL TIME FIX: Har comparison UTC time ke hisaab se hoga
       final nowUTC = DateTime.now().toUtc();
       final twentyFourHoursAgoUTC = nowUTC.subtract(const Duration(hours: 24));
 
@@ -65,44 +64,42 @@ class _TournamentScreenState extends State<TournamentScreen> {
         if (type == 'duo') squadSize = 2;
         if (type == 'squad') squadSize = 4;
 
-        int totalSlots = slots * squadSize;
+        // 🌟 THE FIX: Calculating Total Player Capacity 🌟
+        int totalCapacity = slots * squadSize; 
         int filled = row['filled'] ?? 0;
-        double progress = totalSlots > 0 ? (filled / totalSlots) : 0;
+        
+        // Progress bar logic total capacity ke hisaab se
+        double progress = totalCapacity > 0 ? (filled / totalCapacity) : 0;
         if (progress > 1.0) progress = 1.0; 
         
-        int spotsLeft = totalSlots - filled;
-        bool isFull = filled >= totalSlots;
+        int spotsLeft = totalCapacity - filled;
+        
+        // 🌟 THE FIX: 'isFull' check ab totalCapacity par hai 🌟
+        bool isFull = filled >= totalCapacity; 
 
-        // DB se time le kar explicitly UTC mein convert kiya
         DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
 
         Map<String, dynamic> matchData = {
           ...row,
-          'totalSlots': totalSlots,
+          'totalCapacity': totalCapacity, // Passed to UI
           'filled': filled,
           'progress': progress,
           'spotsLeft': spotsLeft,
           'isFull': isFull,
-          'matchTimeUTC': matchTimeUTC, // Save format
+          'matchTimeUTC': matchTimeUTC, 
         };
-
-        // 🌟 THE AUTOMATIC TIME-BASED SHIFTING LOGIC 🌟
         
         bool hasResult = row['status'] == 'completed'; 
 
         if (hasResult) {
-          // RESULT TAB: Check if within last 24 hours
           DateTime endTimeUTC = DateTime.tryParse(row['end_time'].toString())?.toUtc() ?? matchTimeUTC;
           if (endTimeUTC.isAfter(twentyFourHoursAgoUTC)) {
             tempResults.add(matchData);
           }
         } else {
-          // Agar result nahi aaya hai, toh TIME check karo
           if (matchTimeUTC.isAfter(nowUTC)) {
-            // Start time aage ka hai -> MATCH TAB
             tempMatches.add(matchData);
           } else {
-            // Start time aa gaya ya cross ho gaya -> ONGOING TAB
             tempOngoing.add(matchData);
           }
         }
@@ -112,7 +109,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
         setState(() {
           _matches = tempMatches;
           _ongoing = tempOngoing;
-          _results = tempResults.reversed.toList(); // Latest result upar
+          _results = tempResults.reversed.toList(); 
           _isLoading = false;
         });
       }
@@ -179,7 +176,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
   }
 
   Widget _buildCard(Map<String, dynamic> item, bool isResult, bool isOngoing) {
-    // Dikhane ke liye time wapas Local (India time) mein convert kiya
     DateTime localTime = item['matchTimeUTC'].toLocal();
     String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(localTime);
 
@@ -267,7 +263,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
                             ),
                           ),
                         ),
-                        Text("${item['filled']}/${item['totalSlots']}", style: const TextStyle(fontSize: 12, color: Color(0xFFd1d5db))),
+                        // 🌟 UI FIX: Dikhane mein bhi totalCapacity dikhega 🌟
+                        Text("${item['filled']}/${item['totalCapacity']}", style: const TextStyle(fontSize: 12, color: Color(0xFFd1d5db))),
                       ],
                     ),
                     const SizedBox(height: 15),
