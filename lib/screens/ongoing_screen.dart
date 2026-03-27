@@ -63,20 +63,19 @@ class _OngoingScreenState extends State<OngoingScreen> {
       final nowUTC = DateTime.now().toUtc();
       Map<String, List<Map<String, dynamic>>> tempGrouped = {};
       
-      // 🌟 DUPLICATE FIX: Tournament ID track karne ke liye set 🌟
+      // 🌟 DUPLICATE FIX 🌟
       Set<int> seenIds = {}; 
 
       if (response != null) {
         for (var row in response as List<dynamic>) {
           int tId = row['id'];
           
-          // Agar ye tournament pehle hi add ho chuka hai (Duo/Squad booking ki wajah se), toh skip karo
           if (seenIds.contains(tId)) continue; 
 
           DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
 
           if (!matchTimeUTC.isAfter(nowUTC)) {
-            seenIds.add(tId); // ID mark kar lo taaki repeat na ho
+            seenIds.add(tId); 
             String mode = row['mode']?.toString().toUpperCase() ?? 'UNKNOWN';
             if (!tempGrouped.containsKey(mode)) tempGrouped[mode] = [];
             
@@ -157,7 +156,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          // 🌟 PREMIUM DARK BLUE GRADIENT 🌟
           gradient: const LinearGradient(
             colors: [Color(0xFF1e3a8a), Color(0xFF1e293b)], 
             begin: Alignment.topLeft,
@@ -174,7 +172,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
         ),
         child: Column(
           children: [
-            // Top Section (Title & Status)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 15),
               child: Column(
@@ -209,7 +206,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
             
             const Divider(color: Color(0xFF334155), height: 1),
 
-            // Middle Section (Stats)
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -235,7 +231,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
               ),
             ),
             
-            // Bottom Action Bar
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
