@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'dart:async'; // Auto-refresh ke liye zaroori hai
 import 'package:battle_master/screens/rules_screen.dart'; 
-import 'package:battle_master/screens/choose_slot_screen.dart';
 
 class TournamentScreen extends StatefulWidget {
   final String mode;
@@ -15,6 +15,7 @@ class TournamentScreen extends StatefulWidget {
 
 class _TournamentScreenState extends State<TournamentScreen> {
   bool _isLoading = true;
+  Timer? _refreshTimer; // Auto-refresh timer
   
   List<Map<String, dynamic>> _matches = []; // Match Tab (Upcoming)
   List<Map<String, dynamic>> _ongoing = []; // Ongoing Tab
@@ -24,10 +25,25 @@ class _TournamentScreenState extends State<TournamentScreen> {
   void initState() {
     super.initState();
     _fetchTournaments();
+    
+    // ⏳ AUTO REFRESH: Har 1 minute mein list auto-update hogi
+    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) {
+        _fetchTournaments(silentRefresh: true);
+      }
+    });
   }
 
-  Future<void> _fetchTournaments() async {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel(); // Memory leak rokne ke liye
+    super.dispose();
+  }
+
+  Future<void> _fetchTournaments({bool silentRefresh = false}) async {
     try {
+      if (!silentRefresh) setState(() => _isLoading = true);
+
       final response = await Supabase.instance.client
           .from('tournaments')
           .select('*')
@@ -38,8 +54,9 @@ class _TournamentScreenState extends State<TournamentScreen> {
       List<Map<String, dynamic>> tempOngoing = [];
       List<Map<String, dynamic>> tempResults = [];
 
-      final now = DateTime.now();
-      final twentyFourHoursAgo = now.subtract(const Duration(hours: 24));
+      // 🌍 GLOBAL TIME FIX: Har comparison UTC time ke hisaab se hoga
+      final nowUTC = DateTime.now().toUtc();
+      final twentyFourHoursAgoUTC = nowUTC.subtract(const Duration(hours: 24));
 
       for (var row in response as List<dynamic>) {
         int slots = row['slots'] ?? 0;
@@ -56,8 +73,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
         int spotsLeft = totalSlots - filled;
         bool isFull = filled >= totalSlots;
 
-        // Fallback times to prevent crashes
-        DateTime matchTime = DateTime.tryParse(row['time'].toString()) ?? now;
+        // DB se time le kar explicitly UTC mein convert kiya
+        DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
 
         Map<String, dynamic> matchData = {
           ...row,
@@ -66,22 +83,22 @@ class _TournamentScreenState extends State<TournamentScreen> {
           'progress': progress,
           'spotsLeft': spotsLeft,
           'isFull': isFull,
-          'matchTime': matchTime,
+          'matchTimeUTC': matchTimeUTC, // Save format
         };
 
         // 🌟 THE AUTOMATIC TIME-BASED SHIFTING LOGIC 🌟
         
-        bool hasResult = row['status'] == 'completed'; // Admin ne result de diya
+        bool hasResult = row['status'] == 'completed'; 
 
         if (hasResult) {
           // RESULT TAB: Check if within last 24 hours
-          DateTime endTime = DateTime.tryParse(row['end_time'].toString()) ?? matchTime;
-          if (endTime.isAfter(twentyFourHoursAgo)) {
+          DateTime endTimeUTC = DateTime.tryParse(row['end_time'].toString())?.toUtc() ?? matchTimeUTC;
+          if (endTimeUTC.isAfter(twentyFourHoursAgoUTC)) {
             tempResults.add(matchData);
           }
         } else {
           // Agar result nahi aaya hai, toh TIME check karo
-          if (matchTime.isAfter(now)) {
+          if (matchTimeUTC.isAfter(nowUTC)) {
             // Start time aage ka hai -> MATCH TAB
             tempMatches.add(matchData);
           } else {
@@ -91,16 +108,18 @@ class _TournamentScreenState extends State<TournamentScreen> {
         }
       }
 
-      setState(() {
-        _matches = tempMatches;
-        _ongoing = tempOngoing;
-        _results = tempResults.reversed.toList(); // Latest result upar
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _matches = tempMatches;
+          _ongoing = tempOngoing;
+          _results = tempResults.reversed.toList(); // Latest result upar
+          _isLoading = false;
+        });
+      }
       
     } catch (e) {
       print("Error fetching category tournaments: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -160,7 +179,9 @@ class _TournamentScreenState extends State<TournamentScreen> {
   }
 
   Widget _buildCard(Map<String, dynamic> item, bool isResult, bool isOngoing) {
-    String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(item['matchTime']);
+    // Dikhane ke liye time wapas Local (India time) mein convert kiya
+    DateTime localTime = item['matchTimeUTC'].toLocal();
+    String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(localTime);
 
     return GestureDetector(
       onTap: () {
@@ -259,7 +280,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         ),
                         onPressed: item['isFull'] ? null : () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => ChooseSlotScreen(tournamentId: item['id'])));
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: item['id'])));
                         },
                         child: Text(
                           item['isFull'] ? "MATCH FULL" : "JOIN NOW",

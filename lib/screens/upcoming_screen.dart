@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'dart:async'; // Auto-refresh ke liye zaroori hai
 import 'package:battle_master/screens/rules_screen.dart';
 
 class UpcomingScreen extends StatefulWidget {
@@ -13,34 +14,53 @@ class UpcomingScreen extends StatefulWidget {
 class _UpcomingScreenState extends State<UpcomingScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _tournaments = [];
+  Timer? _refreshTimer; // Auto-refresh timer
 
   @override
   void initState() {
     super.initState();
     _fetchUpcomingTournaments();
+    
+    // ⏳ AUTO REFRESH: Har 1 minute baad background mein check karega
+    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) {
+        _fetchUpcomingTournaments(silentRefresh: true);
+      }
+    });
   }
 
-  Future<void> _fetchUpcomingTournaments() async {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel(); // Memory leak se bachne ke liye cancel karo
+    super.dispose();
+  }
+
+  // silentRefresh se list background me update hogi, loading spinner nahi aayega baar baar
+  Future<void> _fetchUpcomingTournaments({bool silentRefresh = false}) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
     try {
+      if (!silentRefresh) setState(() => _isLoading = true);
+
       // 🌟 MAGIC QUERY: Sirf Joined aur jinka result nahi aaya hai
       final response = await Supabase.instance.client
           .from('tournaments')
           .select('*, user_tournaments!inner(user_id)')
           .eq('user_tournaments.user_id', user.id)
-          .neq('status', 'completed') // Result nahi aaya
+          .neq('status', 'completed') 
           .order('time', ascending: true);
 
-      final now = DateTime.now();
+      // 🌍 GLOBAL TIME FIX: Har comparison UTC time ke hisaab se hoga
+      final nowUTC = DateTime.now().toUtc();
       List<Map<String, dynamic>> formattedList = [];
 
       for (var row in response as List<dynamic>) {
-        DateTime matchTime = DateTime.tryParse(row['time'].toString()) ?? now;
+        // Database se aaye time ko strictly UTC mein convert kiya
+        DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
         
         // ⏳ TIME LOGIC: Sirf aage ka time (Upcoming) dikhao
-        if (matchTime.isAfter(now)) {
+        if (matchTimeUTC.isAfter(nowUTC)) {
           int slots = row['slots'] ?? 0;
           String type = (row['type'] ?? '').toString().toLowerCase();
           int squadSize = 1;
@@ -58,18 +78,20 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
             'filled': filled,
             'progress': progress,
             'spotsLeft': totalSlots - filled,
-            'matchTime': matchTime,
+            'matchTimeUTC': matchTimeUTC, // Save format as UTC
           });
         }
       }
 
-      setState(() {
-        _tournaments = formattedList;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _tournaments = formattedList;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print("Error fetching upcoming tournaments: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -92,7 +114,10 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
                   itemCount: _tournaments.length,
                   itemBuilder: (context, index) {
                     final t = _tournaments[index];
-                    String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(t['matchTime']);
+                    
+                    // Dikhane ke liye time wapas Local (India time) mein convert kiya
+                    DateTime localTime = t['matchTimeUTC'].toLocal();
+                    String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(localTime);
 
                     return GestureDetector(
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => RulesScreen(tournamentId: t['id']))),

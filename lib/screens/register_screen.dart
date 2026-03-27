@@ -17,7 +17,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _cpasswordController = TextEditingController();
-  final _referralCodeController = TextEditingController(); // Referral Code ke liye naya controller
+  final _referralCodeController = TextEditingController(); 
   
   bool _isLoading = false;
 
@@ -31,9 +31,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final mobile = _mobileController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final referralCode = _referralCodeController.text.trim(); // Naya referral code yahan se milega
+    final referralCode = _referralCodeController.text.trim();
 
-    // Referral code optional hai, isliye iska validation yahan nahi hai
     if (username.isEmpty || mobile.isEmpty || email.isEmpty || password.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all mandatory fields")));
         return;
@@ -44,6 +43,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final supabase = Supabase.instance.client;
 
     try {
+      // 🌟 STEP 1: PRE-CHECK FOR DUPLICATE USERNAME OR MOBILE 🌟
+      final existingCheck = await supabase
+          .from('users')
+          .select('username, mobile')
+          .or('username.eq.$username,mobile.eq.$mobile');
+
+      if (existingCheck.isNotEmpty) {
+        bool isUsernameTaken = existingCheck.any((u) => u['username'] == username);
+        bool isMobileTaken = existingCheck.any((u) => u['mobile'] == mobile);
+
+        if (isUsernameTaken) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Username is already taken! Try another.")));
+        } else if (isMobileTaken) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Mobile number is already registered!")));
+        }
+        
+        setState(() => _isLoading = false);
+        return; // Execution yahin rok do
+      }
+
+      // 🌟 STEP 2: PROCEED WITH REGISTRATION IF UNIQUE 🌟
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
@@ -59,8 +79,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'username': username,
           'mobile': mobile,
           'email': email,
-          'fcode': ownReferCode, // User ka apna referral code (pehle 'refer_code' tha, ab 'fcode' hai)
-          'referred_by': referralCode.isNotEmpty ? referralCode : null // Agar code daala hai to save karo, warna null
+          'fcode': ownReferCode, 
+          'referred_by': referralCode.isNotEmpty ? referralCode : null 
         });
 
         if (mounted) {
@@ -97,7 +117,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     shadows: [
-                      Shadow(blurRadius: 10.0, color: Color(0xFFfacc15).withOpacity(0.5))
+                      Shadow(blurRadius: 10.0, color: const Color(0xFFfacc15).withOpacity(0.5))
                     ]
                   ),
                 ),
@@ -113,7 +133,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 _buildInput(_emailController, "Email Address", Icons.email_outlined),
                 _buildInput(_passwordController, "Password", Icons.lock_outline, isPassword: true),
                 _buildInput(_cpasswordController, "Confirm Password", Icons.lock_outline, isPassword: true),
-                _buildInput(_referralCodeController, "Referral Code (Optional)", Icons.group_add_outlined), // Naya field UI me add kiya
+                _buildInput(_referralCodeController, "Referral Code (Optional)", Icons.group_add_outlined),
                 const SizedBox(height: 25),
 
                 _isLoading

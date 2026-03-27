@@ -125,11 +125,10 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             backgroundColor: const Color(0xFF1f2937),
             elevation: 2,
-            // UPDATED: AppBar Title Style
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Welcome back,", style: TextStyle(fontSize: 12, color: Colors.white)), // Changed to white
+                const Text("Welcome back,", style: TextStyle(fontSize: 12, color: Colors.white)),
                 Text(userData['username'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFfacc15))),
               ],
             ),
@@ -194,14 +193,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                // Agar table mein data nahi hoga to ab ye box aayega (Debugging ke liye)
                 return Container(
                   height: 160,
                   width: double.infinity,
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(12)),
                   child: const Center(
-                    child: Text("No Active Banners Found in DB", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+                    child: Text("No Active Banners Found", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
                   ),
                 );
               }
@@ -214,12 +212,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 160.0,
                     autoPlay: true,
                     enlargeCenterPage: true,
-                    viewportFraction: 1.0, // Take full width
-                    autoPlayInterval: const Duration(seconds: 4), // 4 Seconds sliding
+                    viewportFraction: 1.0, 
+                    autoPlayInterval: const Duration(seconds: 4), 
                   ),
                   items: banners.map((banner) {
                     String imageUrl = banner['image_url'] ?? '';
-                    // Support both Direct URL and raw file name from bucket
                     if (!imageUrl.startsWith('http') && imageUrl.isNotEmpty) {
                       imageUrl = Supabase.instance.client.storage.from('Battle Master Banner').getPublicUrl(imageUrl);
                     }
@@ -228,7 +225,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () {
                         final link = banner['action_link'];
                         if (link != null && link.toString().isNotEmpty) {
-                          // Handle action_link navigation here if needed
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Link Action: $link")));
                         }
                       },
@@ -252,7 +248,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           // --- END BANNER SYSTEM ---
 
-          // UPDATED: Title Centered
           const Center(
             child: Text("My Matches", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))
           ),
@@ -266,7 +261,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 30),
-          // UPDATED: Title Centered
           const Center(
             child: Text("Esports Games", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))
           ),
@@ -329,17 +323,39 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildMenuItem("Privacy Policy", Icons.privacy_tip, const PrivacyPolicyPage()),
           _buildMenuItem("Terms & Conditions", Icons.description, const TermsPage()),
           const SizedBox(height: 10),
+          
+          // 🌟 THE HACKER-PROOF LOGOUT BUTTON 🌟
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFdc2626)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFdc2626),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
               onPressed: () async {
-                await Supabase.instance.client.auth.signOut();
-                if (mounted) {
-                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                try {
+                  // Global scope destroys the session on all devices
+                  await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);
+                  
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("✅ Logged out securely from all devices.")),
+                    );
+                    Navigator.pushAndRemoveUntil(
+                      context, 
+                      MaterialPageRoute(builder: (context) => const LoginScreen()), 
+                      (route) => false // Clear entire navigation stack
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("❌ Error during logout: $e")),
+                    );
+                  }
                 }
               },
-              child: const Text("Logout", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text("Logout", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
           ),
         ],
@@ -371,7 +387,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildGameBox(String title, String imagePath) {
     return GestureDetector(
-      // Seedha TournamentScreen par bhej rahe hain aur game ka naam (mode) pass kar rahe hain
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TournamentScreen(mode: title))),
       child: Container(
         decoration: BoxDecoration(
