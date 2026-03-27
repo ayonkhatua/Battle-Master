@@ -61,30 +61,34 @@ class _OngoingScreenState extends State<OngoingScreen> {
       }
 
       final nowUTC = DateTime.now().toUtc();
-      Map<String, List<Map<String, dynamic>>> tempGrouped = {};
       
-      // 🌟 DUPLICATE FIX 🌟
-      Set<int> seenIds = {}; 
+      // 🌟 MAGIC LOGIC: Map use karke ID duplicates hatana 🌟
+      Map<int, Map<String, dynamic>> uniqueMatches = {};
 
       if (response != null) {
         for (var row in response as List<dynamic>) {
           int tId = row['id'];
-          
-          if (seenIds.contains(tId)) continue; 
-
           DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
 
+          // Sirf ongoing matches (jo start ho chuke hain)
           if (!matchTimeUTC.isAfter(nowUTC)) {
-            seenIds.add(tId); 
-            String mode = row['mode']?.toString().toUpperCase() ?? 'UNKNOWN';
-            if (!tempGrouped.containsKey(mode)) tempGrouped[mode] = [];
-            
-            tempGrouped[mode]!.add({
-              ...row as Map<String, dynamic>,
-              'matchTime': matchTimeUTC, 
-            });
+            // Agar ye ID pehle hi aa chuki hai, toh overwrite nahi hoga (Unique banega)
+            if (!uniqueMatches.containsKey(tId)) {
+              uniqueMatches[tId] = {
+                ...row as Map<String, dynamic>,
+                'matchTime': matchTimeUTC,
+              };
+            }
           }
         }
+      }
+
+      // Group by Category
+      Map<String, List<Map<String, dynamic>>> tempGrouped = {};
+      for (var t in uniqueMatches.values) {
+        String mode = t['mode']?.toString().toUpperCase() ?? 'UNKNOWN';
+        if (!tempGrouped.containsKey(mode)) tempGrouped[mode] = [];
+        tempGrouped[mode]!.add(t);
       }
 
       if (mounted) {

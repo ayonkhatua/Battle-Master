@@ -26,10 +26,9 @@ class _CompletedScreenState extends State<CompletedScreen> {
     if (userId == null) return;
 
     try {
-      // 1-Month Rule: Aaj ki date se 30 din pehle ki date nikal rahe hain
+      // 1-Month Rule: Aaj ki date se 30 din pehle ki date
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
 
-      // 🌟 Supabase '!inner' Join (Game Results) 🌟
       final response = await Supabase.instance.client
           .from('tournaments')
           .select('*, game_results!inner(kills, winnings, is_winner)')
@@ -38,41 +37,37 @@ class _CompletedScreenState extends State<CompletedScreen> {
           .gte('end_time', thirtyDaysAgo) 
           .order('end_time', ascending: false); 
 
-      // 🌟 DUPLICATE FIX: Duo/Squad matches ke multiple results ko filter karne ke liye 🌟
-      Set<int> seenIds = {};
-      List<Map<String, dynamic>> filteredList = [];
+      // 🌟 MAGIC LOGIC: Map se Grouping to prevent duplicates 🌟
+      Map<int, Map<String, dynamic>> uniqueCompleted = {};
 
       for (var row in response as List<dynamic>) {
         int tId = row['id'];
         
-        // Agar tournament already list mein hai toh skip karo
-        if (seenIds.contains(tId)) continue;
-        
-        seenIds.add(tId);
-        
-        // Agar Duo/Squad hai toh total kills aur winnings ko sum karo
-        int totalKills = 0;
-        int totalWinnings = 0;
-        bool isWinner = false;
+        // Agar id map mein nahi hai, tabhi add karo
+        if (!uniqueCompleted.containsKey(tId)) {
+          int totalKills = 0;
+          int totalWinnings = 0;
+          bool isWinner = false;
 
-        final results = row['game_results'] as List<dynamic>? ?? [];
-        for (var r in results) {
-          totalKills += (r['kills'] as int?) ?? 0;
-          totalWinnings += (r['winnings'] as int?) ?? 0;
-          if (r['is_winner'] == true) isWinner = true; // Agar ek bhi slot jeeta toh winner true
+          final results = row['game_results'] as List<dynamic>? ?? [];
+          for (var r in results) {
+            totalKills += (r['kills'] as int?) ?? 0;
+            totalWinnings += (r['winnings'] as int?) ?? 0;
+            if (r['is_winner'] == true) isWinner = true;
+          }
+
+          uniqueCompleted[tId] = {
+            ...row as Map<String, dynamic>,
+            'myKills': totalKills,
+            'myWinnings': totalWinnings,
+            'amIWinner': isWinner,
+          };
         }
-
-        // Row update karo
-        row['my_total_kills'] = totalKills;
-        row['my_total_winnings'] = totalWinnings;
-        row['am_i_winner'] = isWinner;
-
-        filteredList.add(row as Map<String, dynamic>);
       }
 
       if (mounted) {
         setState(() {
-          _completedTournaments = filteredList;
+          _completedTournaments = uniqueCompleted.values.toList();
           _isLoading = false;
         });
       }
@@ -85,143 +80,119 @@ class _CompletedScreenState extends State<CompletedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f172a), // Dark Blue/Slate background
+      backgroundColor: const Color(0xFF0f172a), // Dark Theme Background
       appBar: AppBar(
         backgroundColor: const Color(0xFF1e293b),
         title: const Text(
-          "🏆 MY COMPLETED MATCHES",
-          style: TextStyle(color: Color(0xFFf8fafc), fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
+          "🏆 MY COMPLETED MATCHES", 
+          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 4,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))
           : _completedTournaments.isEmpty
-              ? _buildEmptyState()
-              : _buildList(),
-    );
-  }
+              ? const Center(child: Text("No completed matches found.", style: TextStyle(color: Colors.grey)))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(15),
+                  itemCount: _completedTournaments.length,
+                  itemBuilder: (context, index) {
+                    final t = _completedTournaments[index];
+                    bool winner = t['amIWinner'] ?? false;
+                    
+                    String timeString = t['end_time'] ?? t['time'] ?? '';
+                    String formattedTime = '';
+                    if (timeString.isNotEmpty) {
+                      formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.parse(timeString).toLocal());
+                    }
 
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Text(
-        "No completed matches in the last 30 days.",
-        style: TextStyle(color: Color(0xFF94a3b8), fontSize: 16),
-      ),
-    );
-  }
-
-  Widget _buildList() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 20),
-      itemCount: _completedTournaments.length,
-      itemBuilder: (context, index) {
-        final t = _completedTournaments[index];
-        
-        String timeString = t['end_time'] ?? t['time'] ?? '';
-        String formattedTime = '';
-        if (timeString.isNotEmpty) {
-          formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.parse(timeString).toLocal()); // Local time convert
-        }
-
-        bool isWinner = t['am_i_winner'] ?? false;
-        int myKills = t['my_total_kills'] ?? 0;
-        int myWinnings = t['my_total_winnings'] ?? 0;
-
-        return GestureDetector(
-          onTap: () {
-            // Yahan user Leaderboard dekhne jayega 
-            // Abhi ke liye main isko RulesScreen bhej raha hu (wahan Result tab banane ke baad isko update karenge)
-            Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: t['id'])));
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white, 
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: isWinner ? Colors.amber.withOpacity(0.4) : Colors.black.withOpacity(0.1), 
-                  blurRadius: 15, 
-                  offset: const Offset(0, 4)
-                )
-              ],
-              border: isWinner ? Border.all(color: Colors.amber, width: 1.5) : null,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        "#${t['id']} - ${t['title']}",
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
-                        overflow: TextOverflow.ellipsis,
+                    return GestureDetector(
+                      onTap: () {
+                        // Yahan future mein Result/Leaderboard Screen ka link aayega
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: t['id'])));
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white, // 🌟 PURE WHITE CARD 🌟
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: winner ? Colors.amber.withOpacity(0.5) : Colors.black12, 
+                              blurRadius: 10, 
+                              offset: const Offset(0, 4)
+                            )
+                          ],
+                          border: winner ? Border.all(color: Colors.amber, width: 2) : null,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "#${t['id']} - ${t['title']}", 
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                ),
+                                if (winner) const Icon(Icons.emoji_events, color: Colors.amber, size: 30),
+                              ],
+                            ),
+                            const SizedBox(height: 5),
+                            Text("Ended: $formattedTime", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                            
+                            const SizedBox(height: 15),
+                            
+                            // Kills & Coins Box
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFf8fafc), 
+                                borderRadius: BorderRadius.circular(10), 
+                                border: Border.all(color: Colors.black12)
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _completedStat("MY KILLS", "🔫 ${t['myKills']}", Colors.black87),
+                                  Container(height: 30, width: 1, color: Colors.grey.shade300),
+                                  _completedStat("WINNINGS", "🪙 ${t['myWinnings']}", Colors.green.shade700),
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 15),
+                            
+                            // Extra Details
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _completedStat("Winner", t['winner']?.toString().isNotEmpty == true ? t['winner'] : '-', Colors.black54),
+                                _completedStat("Type", t['type']?.toString().toUpperCase() ?? '-', Colors.black54),
+                                _completedStat("Map", t['map'] ?? '-', Colors.black54),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (isWinner)
-                      const Icon(Icons.workspace_premium, color: Colors.amber, size: 28),
-                  ],
+                    );
+                  },
                 ),
-                const SizedBox(height: 5),
-                Text("Ended: $formattedTime", style: const TextStyle(fontSize: 14, color: Color(0xFF6b7280))),
-                
-                const SizedBox(height: 16),
-                
-                // 🚀 PERSONAL RESULT GRID (Sum of Kills & Winnings if Duo/Squad)
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFf8fafc),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFe2e8f0))
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildGridItem("My Kills", "🔫 $myKills"),
-                      Container(height: 30, width: 1, color: Colors.grey.shade300), // Divider
-                      _buildGridItem("My Winnings", "🪙 $myWinnings", color: Colors.green.shade700),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Extra Grid (Winner Name, Map)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildGridItem("Match Winner", t['winner']?.toString().isNotEmpty == true ? t['winner'] : '-'),
-                    _buildGridItem("Type", t['type']?.toString().toUpperCase() ?? '-'),
-                    _buildGridItem("Map", t['map'] ?? '-'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
-  // Chota widget grids banane ke liye
-  Widget _buildGridItem(String title, String value, {Color? color}) {
+  Widget _completedStat(String label, String val, Color color) {
     return Expanded(
       child: Column(
         children: [
-          Text(title, style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af), fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(fontSize: 15, color: color ?? const Color(0xFF374151), fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
+          Text(val, style: TextStyle(color: color, fontSize: 15, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
         ],
       ),
     );
