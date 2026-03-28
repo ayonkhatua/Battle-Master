@@ -6,7 +6,8 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:battle_master/screens/profile_screen.dart';
 import 'package:battle_master/screens/wallet_screen.dart';
 import 'package:battle_master/screens/statistics_screen.dart';
-import 'package:battle_master/screens/my_tournaments_screen.dart';
+import 'package:battle_master/screens/ongoing_screen.dart'; // Path sahi se check kar lena
+import 'package:battle_master/screens/completed_screen.dart';
 import 'package:battle_master/screens/upcoming_screen.dart';
 import 'package:battle_master/screens/game_screen.dart'; // TournamentScreen yahan se aayegi
 import 'package:battle_master/screens/login_screen.dart';
@@ -252,14 +253,34 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Text("My Matches", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))
           ),
           const SizedBox(height: 15),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildMatchCard("Ongoing", Icons.sync, const Color(0xFF34d399), const MyTournamentsScreen()),
-              _buildMatchCard("Upcoming", Icons.calendar_today, Colors.blue, const UpcomingScreen()),
-              _buildMatchCard("Completed", Icons.check_circle, const Color(0xFF10b981), const MyTournamentsScreen()),
-            ],
-          ),
+         Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    // 1. Ongoing Matches ke liye
+    _buildMatchCard(
+      "Ongoing", 
+      Icons.sync, 
+      const Color(0xFF34d399), 
+      const OngoingScreen(isMyMatches: true), // 🌟 Premium Ongoing Screen connect kar di
+    ),
+    
+    // 2. Upcoming (Isko aise hi rehne do agar iski file hai tumhare paas)
+    _buildMatchCard(
+      "Upcoming", 
+      Icons.calendar_today, 
+      Colors.blue, 
+      const UpcomingScreen(), 
+    ),
+    
+    // 3. Completed Matches ke liye
+    _buildMatchCard(
+      "Completed", 
+      Icons.check_circle, 
+      const Color(0xFF10b981), 
+      const CompletedScreen(), // 🌟 Premium Completed Screen connect kar di
+    ),
+  ],
+),
           const SizedBox(height: 30),
           const Center(
             child: Text("Esports Games", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))

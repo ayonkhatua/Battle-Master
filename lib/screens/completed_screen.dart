@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-// Note: Is screen ka naam aur path check kar lena
 import 'package:battle_master/screens/rules_screen.dart'; 
 
 class CompletedScreen extends StatefulWidget {
@@ -26,7 +25,6 @@ class _CompletedScreenState extends State<CompletedScreen> {
     if (userId == null) return;
 
     try {
-      // 1-Month Rule: Aaj ki date se 30 din pehle ki date
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
 
       final response = await Supabase.instance.client
@@ -43,7 +41,6 @@ class _CompletedScreenState extends State<CompletedScreen> {
       for (var row in response as List<dynamic>) {
         int tId = row['id'];
         
-        // Agar id map mein nahi hai, tabhi add karo
         if (!uniqueCompleted.containsKey(tId)) {
           int totalKills = 0;
           int totalWinnings = 0;
@@ -109,7 +106,7 @@ class _CompletedScreenState extends State<CompletedScreen> {
 
                     return GestureDetector(
                       onTap: () {
-                        // Yahan future mein Result/Leaderboard Screen ka link aayega
+                        // Future link for Result/Leaderboard Screen
                         Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: t['id'])));
                       },
                       child: Container(

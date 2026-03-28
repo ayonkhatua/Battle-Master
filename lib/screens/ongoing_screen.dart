@@ -43,16 +43,15 @@ class _OngoingScreenState extends State<OngoingScreen> {
       
       dynamic response;
 
+      // 🌟 STATUS FILTERING - Sirf wahi layega jo 'completed' nahi hain
       if (widget.isMyMatches && userId != null) {
-        // PERSONAL MATCHES
         response = await Supabase.instance.client
             .from('tournaments')
             .select('*, user_tournaments!inner(user_id)')
             .eq('user_tournaments.user_id', userId)
-            .neq('status', 'completed')
+            .neq('status', 'completed') 
             .order('time', ascending: false);
       } else {
-        // GLOBAL MATCHES
         response = await Supabase.instance.client
             .from('tournaments')
             .select('*')
@@ -70,9 +69,8 @@ class _OngoingScreenState extends State<OngoingScreen> {
           int tId = row['id'];
           DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
 
-          // Sirf ongoing matches (jo start ho chuke hain)
+          // Sirf wahi match jo START ho chuka hai (Current Time se pehle ka time hai)
           if (!matchTimeUTC.isAfter(nowUTC)) {
-            // Agar ye ID pehle hi aa chuki hai, toh overwrite nahi hoga (Unique banega)
             if (!uniqueMatches.containsKey(tId)) {
               uniqueMatches[tId] = {
                 ...row as Map<String, dynamic>,
@@ -83,7 +81,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
         }
       }
 
-      // Group by Category
+      // Group by Category (Mode)
       Map<String, List<Map<String, dynamic>>> tempGrouped = {};
       for (var t in uniqueMatches.values) {
         String mode = t['mode']?.toString().toUpperCase() ?? 'UNKNOWN';
@@ -109,7 +107,8 @@ class _OngoingScreenState extends State<OngoingScreen> {
       backgroundColor: const Color(0xFF0f172a),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1e293b),
-        title: Text(widget.isMyMatches ? "🔥 MY ONGOING MATCHES" : "🔥 ALL ONGOING MATCHES", style: const TextStyle(color: Color(0xFFf8fafc), fontSize: 18, fontWeight: FontWeight.bold)),
+        title: Text(widget.isMyMatches ? "🔥 MY ONGOING MATCHES" : "🔥 ALL ONGOING MATCHES", 
+            style: const TextStyle(color: Color(0xFFf8fafc), fontSize: 18, fontWeight: FontWeight.bold)),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -139,7 +138,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
                           child: Text(mode, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF38bdf8))),
                         ),
                         
-                        ...modeTournaments.map((t) => widget.isMyMatches ? _buildPrivateCard(t) : _buildGlobalCard(t)),
+                        ...modeTournaments.map((t) => _buildOngoingCard(t)),
                       ],
                     );
                   },
@@ -148,9 +147,9 @@ class _OngoingScreenState extends State<OngoingScreen> {
   }
 
   // ==========================================
-  // 1️⃣ PRIVATE CARD (New Premium Gradient UI)
+  // 🚀 ONGOING CARD (Dark Premium UI - No Confusion with Completed)
   // ==========================================
-  Widget _buildPrivateCard(Map<String, dynamic> t) {
+  Widget _buildOngoingCard(Map<String, dynamic> t) {
     DateTime localTime = t['matchTime'].toLocal();
     String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(localTime);
 
@@ -160,6 +159,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
+          // 🌟 PREMIUM DARK BLUE GRADIENT 🌟
           gradient: const LinearGradient(
             colors: [Color(0xFF1e3a8a), Color(0xFF1e293b)], 
             begin: Alignment.topLeft,
@@ -194,11 +194,18 @@ class _OngoingScreenState extends State<OngoingScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFf59e0b).withOpacity(0.2), 
+                          color: const Color(0xFFef4444).withOpacity(0.2), 
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFf59e0b), width: 1)
+                          border: Border.all(color: const Color(0xFFef4444), width: 1)
                         ),
-                        child: const Text("🔥 LIVE", style: TextStyle(color: Color(0xFFf59e0b), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, color: Colors.redAccent, size: 8),
+                            SizedBox(width: 4),
+                            Text("LIVE", style: TextStyle(color: Color(0xFFef4444), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -212,25 +219,12 @@ class _OngoingScreenState extends State<OngoingScreen> {
 
             Padding(
               padding: const EdgeInsets.all(20),
-              child: Column(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildPremiumStat("PRIZE", "💰 ${t['prize_pool']}"),
-                      _buildPremiumStat("PER KILL", "💰 ${t['per_kill']}"),
-                      _buildPremiumStat("ENTRY", "💰 ${t['entry_fee']}"),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildPremiumStat("TYPE", t['type']?.toString().toUpperCase() ?? '-'),
-                      _buildPremiumStat("VERSION", t['version'] ?? '-'),
-                      _buildPremiumStat("MAP", t['map'] ?? '-'),
-                    ],
-                  ),
+                  _buildPremiumStat("TYPE", t['type']?.toString().toUpperCase() ?? '-'),
+                  _buildPremiumStat("VERSION", t['version'] ?? '-'),
+                  _buildPremiumStat("MAP", t['map'] ?? '-'),
                 ],
               ),
             ),
@@ -242,7 +236,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
                 color: Color(0xFF3b82f6),
                 borderRadius: BorderRadius.only(bottomLeft: Radius.circular(15), bottomRight: Radius.circular(15)),
               ),
-              child: const Text("VIEW DETAILS", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1.2)),
+              child: const Text("VIEW ROOM DETAILS", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1.2)),
             ),
           ],
         ),
@@ -250,74 +244,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
     );
   }
 
-  // ==========================================
-  // 2️⃣ GLOBAL CARD (Dark Theme with Image)
-  // ==========================================
-  Widget _buildGlobalCard(Map<String, dynamic> t) {
-    DateTime localTime = t['matchTime'].toLocal();
-    String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(localTime);
-
-    return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: t['id']))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
-        decoration: BoxDecoration(color: const Color(0xFF1e293b), borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 8, offset: const Offset(0, 4))]),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 160, width: double.infinity, color: Colors.grey[800],
-              child: t['image_url'] != null && t['image_url'].toString().isNotEmpty
-                  ? Image.network(t['image_url'], fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.image, color: Colors.white54, size: 50))
-                  : const Icon(Icons.image, color: Colors.white54, size: 50),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(15),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("#${t['id']} - ${t['title']}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFfacc15))),
-                  const SizedBox(height: 5),
-                  Text("Started: $formattedTime", style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af))),
-                  const SizedBox(height: 15),
-                  
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildGlobalGridItem("Prize", "💰 ${t['prize_pool']}"),
-                      _buildGlobalGridItem("Per Kill", "💰 ${t['per_kill']}"),
-                      _buildGlobalGridItem("Entry", "💰 ${t['entry_fee']}"),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildGlobalGridItem("Type", t['type'] ?? '-'),
-                      _buildGlobalGridItem("Version", t['version'] ?? '-'),
-                      _buildGlobalGridItem("Map", t['map'] ?? '-'),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(color: const Color(0xFFf59e0b), borderRadius: BorderRadius.circular(6)),
-                    child: const Text("MATCH IS LIVE", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Grid Items Layouts ---
   Widget _buildPremiumStat(String title, String value) {
     return Expanded(
       child: Column(
@@ -325,18 +251,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
           Text(title, style: const TextStyle(fontSize: 10, color: Color(0xFF94a3b8), fontWeight: FontWeight.bold, letterSpacing: 0.5)),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGlobalGridItem(String title, String value) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 13, color: Colors.white70), textAlign: TextAlign.center),
         ],
       ),
     );
