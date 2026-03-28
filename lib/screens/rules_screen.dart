@@ -135,7 +135,6 @@ class _RulesScreenState extends State<RulesScreen> {
       );
     }
 
-    // 🌟 FIX: Total capacity calculation added here!
     int slots = _tData['slots'] ?? 0;
     String type = (_tData['type'] ?? '').toString().toLowerCase();
     int squadSize = 1;
