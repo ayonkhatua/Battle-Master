@@ -43,7 +43,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
       
       dynamic response;
 
-      // 🌟 STATUS FILTERING - Sirf wahi layega jo 'completed' nahi hain
+      // 🌟 STATUS FILTERING
       if (widget.isMyMatches && userId != null) {
         response = await Supabase.instance.client
             .from('tournaments')
@@ -60,8 +60,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
       }
 
       final nowUTC = DateTime.now().toUtc();
-      
-      // 🌟 MAGIC LOGIC: Map use karke ID duplicates hatana 🌟
       Map<int, Map<String, dynamic>> uniqueMatches = {};
 
       if (response != null) {
@@ -69,7 +67,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
           int tId = row['id'];
           DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
 
-          // Sirf wahi match jo START ho chuka hai (Current Time se pehle ka time hai)
+          // Start ho chuka hai
           if (!matchTimeUTC.isAfter(nowUTC)) {
             if (!uniqueMatches.containsKey(tId)) {
               uniqueMatches[tId] = {
@@ -81,7 +79,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
         }
       }
 
-      // Group by Category (Mode)
+      // Group by Category
       Map<String, List<Map<String, dynamic>>> tempGrouped = {};
       for (var t in uniqueMatches.values) {
         String mode = t['mode']?.toString().toUpperCase() ?? 'UNKNOWN';
@@ -138,7 +136,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
                           child: Text(mode, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF38bdf8))),
                         ),
                         
-                        ...modeTournaments.map((t) => _buildOngoingCard(t)),
+                        ...modeTournaments.map((t) => _buildCompactCard(t)),
                       ],
                     );
                   },
@@ -147,111 +145,177 @@ class _OngoingScreenState extends State<OngoingScreen> {
   }
 
   // ==========================================
-  // 🚀 ONGOING CARD (Dark Premium UI - No Confusion with Completed)
+  // 🚀 COMPACT ONGOING CARD (NO IMAGE)
+  // Reference UI jaisa ekdum clean box
   // ==========================================
-  Widget _buildOngoingCard(Map<String, dynamic> t) {
+  Widget _buildCompactCard(Map<String, dynamic> t) {
     DateTime localTime = t['matchTime'].toLocal();
-    String formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(localTime);
+    String formattedDate = DateFormat('dd/MM/yyyy').format(localTime);
+    String formattedTimeStr = DateFormat('hh:mm a').format(localTime);
 
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: t['id']))),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
+        margin: const EdgeInsets.only(bottom: 15),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          // 🌟 PREMIUM DARK BLUE GRADIENT 🌟
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1e3a8a), Color(0xFF1e293b)], 
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: Colors.white, // Reference image ke hisaab se white bg
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5), 
-              blurRadius: 10, 
-              offset: const Offset(0, 5)
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             )
           ],
-          border: Border.all(color: const Color(0xFF3b82f6).withOpacity(0.3), width: 1),
         ),
         child: Column(
           children: [
+            // --- TOP BADGES & TITLE ---
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 15),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
+                      // Team Type Badge (e.g., Squad)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFfca5a5), // Light Red
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                         child: Text(
-                          "#${t['id']} - ${t['title']}", 
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                          overflow: TextOverflow.ellipsis,
+                          t['type']?.toString().toUpperCase() ?? 'SOLO',
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      // Map Badge (e.g., Bermuda)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFef4444).withOpacity(0.2), 
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFef4444), width: 1)
+                          color: const Color(0xFF6ee7b7), // Light Green
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.circle, color: Colors.redAccent, size: 8),
-                            SizedBox(width: 4),
-                            Text("LIVE", style: TextStyle(color: Color(0xFFef4444), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                          ],
+                        child: Text(
+                          t['map']?.toString().toUpperCase() ?? 'BERMUDA',
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 5),
-                  Text("Started: $formattedTime", style: const TextStyle(fontSize: 12, color: Color(0xFF9ca3af))),
+                  const SizedBox(height: 10),
+                  // Title
+                  Row(
+                    children: [
+                      const Icon(Icons.sports_esports, color: Color(0xFF374151), size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "${t['title']} - Match #${t['id']}",
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1f2937),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
             
-            const Divider(color: Color(0xFF334155), height: 1),
+            const Divider(height: 1, color: Color(0xFFe5e7eb)),
 
-            Padding(
-              padding: const EdgeInsets.all(20),
+            // --- MIDDLE STATS ---
+            IntrinsicHeight( // Row ke andar dividers ki height fix karne ke liye
+              child: Row(
+                children: [
+                  // Date & Time
+                  Expanded(
+                    flex: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        children: [
+                          Text(formattedDate, style: const TextStyle(color: Color(0xFFef4444), fontSize: 13, fontWeight: FontWeight.w600)),
+                          Text(formattedTimeStr, style: const TextStyle(color: Color(0xFF9ca3af), fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1, color: Color(0xFFe5e7eb)),
+                  
+                  // Prize Pool
+                  Expanded(
+                    flex: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        children: [
+                          const Text("PRIZE POOL", style: TextStyle(color: Color(0xFF4b5563), fontSize: 11, fontWeight: FontWeight.bold)),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text("(🪙)${t['prize_pool'] ?? 0}", style: const TextStyle(color: Color(0xFF1f2937), fontSize: 14, fontWeight: FontWeight.bold)),
+                              const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF4b5563)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1, color: Color(0xFFe5e7eb)),
+                  
+                  // Per Kill
+                  Expanded(
+                    flex: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        children: [
+                          const Text("PER KILL", style: TextStyle(color: Color(0xFF3b82f6), fontSize: 11, fontWeight: FontWeight.bold)),
+                          Text("(🪙)${t['per_kill'] ?? 0}", style: const TextStyle(color: Color(0xFF3b82f6), fontSize: 14, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const Divider(height: 1, color: Color(0xFFe5e7eb)),
+
+            // --- BOTTOM LIVE STATUS BAR ---
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFf8fafc), // Very light gray bg for bottom bar
+                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildPremiumStat("TYPE", t['type']?.toString().toUpperCase() ?? '-'),
-                  _buildPremiumStat("VERSION", t['version'] ?? '-'),
-                  _buildPremiumStat("MAP", t['map'] ?? '-'),
+                  const Text(
+                    "● MATCH IS LIVE", 
+                    style: TextStyle(color: Color(0xFFef4444), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 0.5)
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1e293b),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text("VIEW DETAILS ❯", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
                 ],
               ),
             ),
-            
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF3b82f6),
-                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(15), bottomRight: Radius.circular(15)),
-              ),
-              child: const Text("VIEW ROOM DETAILS", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1.2)),
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPremiumStat(String title, String value) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(title, style: const TextStyle(fontSize: 10, color: Color(0xFF94a3b8), fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-        ],
       ),
     );
   }
