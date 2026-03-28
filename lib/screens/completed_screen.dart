@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:battle_master/screens/rules_screen.dart'; 
+import 'package:battle_master/screens/results_screen.dart'; // 🌟 YAHAN NAYI FILE IMPORT KI HAI 🌟
 
 class CompletedScreen extends StatefulWidget {
   const CompletedScreen({super.key});
@@ -115,8 +115,11 @@ class _CompletedScreenState extends State<CompletedScreen> {
 
     return GestureDetector(
       onTap: () {
-        // Yahan future mein Result/Leaderboard Screen ka link aayega
-        Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: t['id'])));
+        // 🌟 UPDATED: Ab RulesScreen nahi, sidha ResultsScreen khulegi 🌟
+        Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (_) => ResultsScreen(tournamentId: t['id']))
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 15),

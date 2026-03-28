@@ -90,62 +90,63 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
       final tRes = await Supabase.instance.client.from('tournaments').select('filled').eq('id', widget.tournamentId).single();
       await Supabase.instance.client.from('tournaments').update({'filled': (tRes['filled'] ?? 0) + widget.selectedSlots.length}).eq('id', widget.tournamentId);
 
-      // 🌟 NAYA LOGIC: SUCCESS POPUP DIALOG 🌟
+      // 🌟 MAGIC LOGIC: Popup ko safely show karna bina error ke 🌟
       if (mounted) {
-        setState(() => _isProcessing = false); // Piche wala loading band karo
-
-        showDialog(
-          context: context,
-          barrierDismissible: false, // User screen par click karke dialog band na kar paye
-          builder: (BuildContext context) {
-            return Dialog(
-              backgroundColor: const Color(0xFF1e293b),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Bada sa Green Check Icon
-                    const Icon(Icons.check_circle, color: Colors.greenAccent, size: 80),
-                    const SizedBox(height: 20),
-                    
-                    const Text(
-                      "JOINED SUCCESSFULLY!", 
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), 
-                      textAlign: TextAlign.center
-                    ),
-                    const SizedBox(height: 10),
-                    
-                    const Text(
-                      "Your slots are confirmed. Room ID and Password will be updated before the match starts.", 
-                      style: TextStyle(color: Colors.grey, fontSize: 14), 
-                      textAlign: TextAlign.center
-                    ),
-                    const SizedBox(height: 30),
-                    
-                    // 🏠 Back To Home Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFfacc15), // Golden button
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () {
-                          // Ye code sidha Home Screen par phek dega (stack clear karke)
-                          Navigator.popUntil(context, (route) => route.isFirst);
-                        },
-                        child: const Text("BACK TO HOME", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+        setState(() => _isProcessing = false); // Step 1: Loading band karna
+        
+        // Future.delayed taaki UI safely update ho jaye uske baad dialog aaye
+        Future.delayed(Duration.zero, () {
+          showDialog(
+            context: context,
+            barrierDismissible: false, // Dialog can't be closed by clicking outside
+            builder: (BuildContext dialogContext) {
+              return Dialog(
+                backgroundColor: const Color(0xFF1e293b),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.greenAccent, size: 80),
+                      const SizedBox(height: 20),
+                      
+                      const Text(
+                        "JOINED SUCCESSFULLY!", 
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), 
+                        textAlign: TextAlign.center
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      
+                      const Text(
+                        "Your slots are confirmed. Room ID and Password will be updated before the match starts.", 
+                        style: TextStyle(color: Colors.grey, fontSize: 14), 
+                        textAlign: TextAlign.center
+                      ),
+                      const SizedBox(height: 30),
+                      
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFfacc15), // Golden button
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            // Ye navigation app ki saari history delete karke sidha index 0 (Home) par layega
+                            Navigator.of(dialogContext).popUntil((route) => route.isFirst);
+                          },
+                          child: const Text("BACK TO HOME", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
-        );
+              );
+            },
+          );
+        });
       }
 
     } catch (e) {
