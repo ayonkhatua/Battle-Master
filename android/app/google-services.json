@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "857184740505",
+    "project_id": "battle-master-official",
+    "storage_bucket": "battle-master-official.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:857184740505:android:cda222ebb8395a95ae0408",
+        "android_client_info": {
+          "package_name": "com.hypernest.battlemaster"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlFv0mVFMNdVoy-nR08BpCwG7r60bny6w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

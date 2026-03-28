@@ -11,6 +11,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  firebase_core: ^3.1.1
+  firebase_messaging: ^15.0.3
+  flutter_local_notifications: ^17.1.2 # App khuli ho tab pop-up dikhane ke liye isko add kardo
+
   supabase_flutter: ^2.0.0
   flutter_dotenv: ^6.0.0
 
@@ -22,6 +26,7 @@ dependencies:
 
   url_launcher: ^6.3.2
   carousel_slider: ^5.1.2
+  shared_preferences: ^2.5.5
   # 'screens' package is not a standard package, maybe it's a local reference? Removing it for now as it may cause errors.
   # screens: ^2.5.0 
 

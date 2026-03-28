@@ -23,7 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     if (_passwordController.text != _cpasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Passwords don't match")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Passwords don't match!")));
       return;
     }
     
@@ -34,7 +34,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final referralCode = _referralCodeController.text.trim();
 
     if (username.isEmpty || mobile.isEmpty || email.isEmpty || password.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all mandatory fields")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all mandatory fields!")));
         return;
     }
 
@@ -43,24 +43,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final supabase = Supabase.instance.client;
 
     try {
-      // 🌟 STEP 1: PRE-CHECK FOR DUPLICATE USERNAME OR MOBILE 🌟
+      // 🌟 STEP 1: PRE-CHECK FOR DUPLICATE USERNAME, MOBILE OR EMAIL 🌟
+      // Hum or() query use karke teeno me se koi bhi match check kar rahe hain
       final existingCheck = await supabase
           .from('users')
-          .select('username, mobile')
-          .or('username.eq.$username,mobile.eq.$mobile');
+          .select('username, mobile, email')
+          .or('username.eq.$username,mobile.eq.$mobile,email.eq.$email');
 
       if (existingCheck.isNotEmpty) {
         bool isUsernameTaken = existingCheck.any((u) => u['username'] == username);
         bool isMobileTaken = existingCheck.any((u) => u['mobile'] == mobile);
+        bool isEmailTaken = existingCheck.any((u) => u['email'] == email);
 
         if (isUsernameTaken) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Username is already taken! Try another.")));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Username is already taken! Try another."), backgroundColor: Colors.red));
         } else if (isMobileTaken) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Mobile number is already registered!")));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Mobile number is already registered! Please login."), backgroundColor: Colors.red));
+        } else if (isEmailTaken) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email is already registered! Please login."), backgroundColor: Colors.red));
         }
         
         setState(() => _isLoading = false);
-        return; // Execution yahin rok do
+        return; // Execution yahin rok do, aage nahi badhega
       }
 
       // 🌟 STEP 2: PROCEED WITH REGISTRATION IF UNIQUE 🌟
@@ -85,15 +89,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Registration Successful! Please check your email for verification.")),
+            const SnackBar(content: Text("✅ Registration Successful! Please check your email for verification."), backgroundColor: Colors.green),
           );
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
         }
       }
     } on AuthException catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Auth Error: ${e.message}")));
+      // Supabase ka default email exists error handle karna (Agar user table mein na ho but Auth mein ho)
+      if (e.message.contains("User already registered") || e.message.contains("already registered")) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email is already registered! Please login."), backgroundColor: Colors.red));
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Auth Error: ${e.message}"), backgroundColor: Colors.red));
+      }
     } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("⚠️ An unexpected error occurred: $e")));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("⚠️ An unexpected error occurred: $e"), backgroundColor: Colors.orange));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -17,7 +17,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   List<Map<String, dynamic>> _allResults = [];
   List<Map<String, dynamic>> _winnerResults = [];
   List<Map<String, dynamic>> _myResults = [];
-  List<String> _winnerList = [];
   
   final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
@@ -34,27 +33,30 @@ class _ResultsScreenState extends State<ResultsScreen> {
           .from('tournaments')
           .select()
           .eq('id', widget.tournamentId)
-          .single();
+          .maybeSingle();
 
-      String winnerStr = tResponse['winner'] ?? '';
-      List<String> winners = winnerStr.isNotEmpty 
-          ? winnerStr.split(',').map((e) => e.trim().toLowerCase()).toList() 
-          : [];
+      if (tResponse == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
-      // 2. Fetch Results with Nested Joins
+      // 2. Fetch IGNs directly from user_tournaments to map with user_id
+      final utResponse = await Supabase.instance.client
+          .from('user_tournaments')
+          .select('user_id, user_ign')
+          .eq('tournament_id', widget.tournamentId);
+
+      Map<String, String> ignMap = {};
+      for (var ut in utResponse as List<dynamic>) {
+        ignMap[ut['user_id'].toString()] = ut['user_ign']?.toString() ?? 'Unknown';
+      }
+
+      // 3. Fetch Game Results (Properly from 'game_results' using 'winnings')
       final rResponse = await Supabase.instance.client
-          .from('results')
-          .select('''
-            user_id,
-            ign, 
-            kills, 
-            won,
-            user_tournaments (
-              users (username)
-            )
-          ''')
+          .from('game_results')
+          .select('user_id, kills, winnings, is_winner')
           .eq('tournament_id', widget.tournamentId)
-          .order('won', ascending: false)
+          .order('winnings', ascending: false)
           .order('kills', ascending: false);
 
       List<Map<String, dynamic>> allRes = [];
@@ -63,25 +65,26 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
       int rank = 1;
       for (var r in rResponse as List<dynamic>) {
-        Map<String, dynamic> rowData = Map<String, dynamic>.from(r);
+        Map<String, dynamic> rowData = {};
+        
+        String userId = r['user_id'].toString();
+        rowData['user_id'] = userId;
+        rowData['kills'] = r['kills'] ?? 0;
+        rowData['winnings'] = r['winnings'] ?? 0;
+        rowData['isWinner'] = r['is_winner'] == true; // Using the boolean from DB
         rowData['rank'] = rank;
         
-        String ign = rowData['ign']?.toString().trim() ?? '-';
-        String username = '';
-        try {
-          username = rowData['user_tournaments']['users']['username']?.toString().trim() ?? '';
-        } catch (_) {}
-        
-        bool isWinner = winners.contains(ign.toLowerCase()) || (username.isNotEmpty && winners.contains(username.toLowerCase()));
-        rowData['isWinner'] = isWinner;
-        
+        // Map the IGN
+        String ign = ignMap[userId] ?? 'Unknown';
+        rowData['ign'] = ign;
+
         // Check if this row belongs to the current logged-in user
-        bool isMe = _currentUserId != null && rowData['user_id'] == _currentUserId;
+        bool isMe = _currentUserId != null && userId == _currentUserId;
         rowData['isMe'] = isMe;
 
         allRes.add(rowData);
 
-        if (isWinner) {
+        if (rowData['isWinner']) {
           winnerRes.add(rowData);
         }
         if (isMe) {
@@ -91,17 +94,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
         rank++;
       }
 
-      setState(() {
-        _tournament = tResponse;
-        _winnerList = winners;
-        _allResults = allRes;
-        _winnerResults = winnerRes;
-        _myResults = myRes;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _tournament = tResponse;
+          _allResults = allRes;
+          _winnerResults = winnerRes;
+          _myResults = myRes;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print("Error fetching results: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -203,7 +207,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
             ],
 
             // --- MY RESULTS (IF JOINED) ---
-            // Tumhare reference ke hisaab se, agar user join kiya hai toh uske results yahan pinned dikhenge
             if (_myResults.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -285,45 +288,51 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
 
           // Table Data Rows
-          ...List.generate(rowsData.length, (index) {
-            final r = rowsData[index];
-            bool isMe = r['isMe'] ?? false;
-            
-            // Background color logic: If it's "My Results" table, make it light yellow, else alternate rows.
-            Color bgColor = Colors.white;
-            if (highlightAll || isMe) {
-              bgColor = const Color(0xFFfef9c3); // Light Yellow highlight for current user
-            } else if (index.isOdd) {
-              bgColor = const Color(0xFFf9fafb); // Very light gray for odd rows
-            }
+          if (rowsData.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text("No result data available.", style: TextStyle(color: Colors.grey)),
+            )
+          else
+            ...List.generate(rowsData.length, (index) {
+              final r = rowsData[index];
+              bool isMe = r['isMe'] ?? false;
+              
+              // Background color logic: If it's "My Results" table, make it light yellow, else alternate rows.
+              Color bgColor = Colors.white;
+              if (highlightAll || isMe) {
+                bgColor = const Color(0xFFfef9c3); // Light Yellow highlight for current user
+              } else if (index.isOdd) {
+                bgColor = const Color(0xFFf9fafb); // Very light gray for odd rows
+              }
 
-            return Container(
-              color: bgColor,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(flex: 1, child: Text("${r['rank']}", style: const TextStyle(color: Colors.black87, fontSize: 14))),
-                  Expanded(
-                    flex: 4, 
-                    child: Text(
-                      r['ign'], 
-                      style: TextStyle(
-                        color: isMe ? Colors.black : Colors.black87, 
-                        fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
-                        fontSize: 14
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  ),
-                  Expanded(flex: 2, child: Text("${r['kills']}", textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87, fontSize: 14))),
-                  Expanded(flex: 2, child: Text("${r['won']}", textAlign: TextAlign.right, style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold))),
-                ],
-              ),
-            );
-          }),
+              return Container(
+                color: bgColor,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(flex: 1, child: Text("${r['rank']}", style: const TextStyle(color: Colors.black87, fontSize: 14))),
+                    Expanded(
+                      flex: 4, 
+                      child: Text(
+                        r['ign'], 
+                        style: TextStyle(
+                          color: isMe ? Colors.black : Colors.black87, 
+                          fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
+                          fontSize: 14
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    ),
+                    Expanded(flex: 2, child: Text("${r['kills']}", textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87, fontSize: 14))),
+                    Expanded(flex: 2, child: Text("${r['winnings']}", textAlign: TextAlign.right, style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold))),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
