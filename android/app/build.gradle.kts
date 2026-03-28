@@ -13,6 +13,9 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // 🌟 DESUGARING ENABLED HERE 🌟
+        isCoreLibraryDesugaringEnabled = true
+        
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -22,11 +25,11 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // TODO: Specify your own unique Application ID
         applicationId = "com.hypernest.battlemaster"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        
+        // 🔥 UPDATE: Hardcoded to 23. Ye karna bohot zaroori hai!
+        minSdk = flutter.minSdkVersion 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -45,7 +48,13 @@ flutter {
     source = "../.."
 }
 
-// 🌟 OPTIONAL BUT RECOMMENDED: Firebase dependencies 🌟
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    // Import the Firebase Bill of Materials (BoM). Updated to a newer stable version.
+    implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
+
+    // 🌟 UPDATE: Specific Firebase modules
+    implementation("com.google.firebase:firebase-analytics")
+    
+    // 🌟 DESUGARING DEPENDENCY ADDED HERE (For flutter_local_notifications) 🌟
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

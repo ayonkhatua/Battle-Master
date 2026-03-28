@@ -6,16 +6,19 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:battle_master/screens/profile_screen.dart';
 import 'package:battle_master/screens/wallet_screen.dart';
 import 'package:battle_master/screens/statistics_screen.dart';
-import 'package:battle_master/screens/ongoing_screen.dart'; // Path sahi se check kar lena
+import 'package:battle_master/screens/ongoing_screen.dart'; 
 import 'package:battle_master/screens/completed_screen.dart';
 import 'package:battle_master/screens/upcoming_screen.dart';
-import 'package:battle_master/screens/game_screen.dart'; // TournamentScreen yahan se aayegi
+import 'package:battle_master/screens/game_screen.dart'; 
 import 'package:battle_master/screens/login_screen.dart';
 import 'package:battle_master/pages/faq_page.dart';
 import 'package:battle_master/pages/privacy_policy_page.dart';
 import 'package:battle_master/pages/terms_page.dart';
 import 'package:battle_master/screens/contact_screen.dart';
 import 'package:battle_master/screens/notifications_screen.dart';
+
+// 🌟 ADD THIS IMPORT FOR NOTIFICATIONS 🌟
+import 'package:battle_master/services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // 🌟 INITIALIZE NOTIFICATIONS YAHAN HOGA 🌟
+    NotificationService.initialize();
+
     _userDataFuture = _fetchUserData();
     _bannersFuture = _fetchBanners();
   }
@@ -261,10 +268,10 @@ class _HomeScreenState extends State<HomeScreen> {
       "Ongoing", 
       Icons.sync, 
       const Color(0xFF34d399), 
-      const OngoingScreen(isMyMatches: true), // 🌟 Premium Ongoing Screen connect kar di
+      const OngoingScreen(isMyMatches: true), 
     ),
     
-    // 2. Upcoming (Isko aise hi rehne do agar iski file hai tumhare paas)
+    // 2. Upcoming 
     _buildMatchCard(
       "Upcoming", 
       Icons.calendar_today, 
@@ -277,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
       "Completed", 
       Icons.check_circle, 
       const Color(0xFF10b981), 
-      const CompletedScreen(), // 🌟 Premium Completed Screen connect kar di
+      const CompletedScreen(), 
     ),
   ],
 ),
@@ -355,7 +362,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onPressed: () async {
                 try {
-                  // Global scope destroys the session on all devices
                   await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);
                   
                   if (mounted) {
@@ -365,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.pushAndRemoveUntil(
                       context, 
                       MaterialPageRoute(builder: (context) => const LoginScreen()), 
-                      (route) => false // Clear entire navigation stack
+                      (route) => false 
                     );
                   }
                 } catch (e) {

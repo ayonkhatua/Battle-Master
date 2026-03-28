@@ -1,11 +1,16 @@
 import 'package:battle_master/screens/maintenance_screen.dart';
-// 🔥 Yahan LoginScreen hata kar AuthCheckScreen import kiya hai
 import 'package:battle_master/screens/auth_check_screen.dart'; 
 import 'package:battle_master/screens/update_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/services/user_status_service.dart';
+
+// 🌟 FIREBASE IMPORTS ADD KIYE 🌟
+import 'package:firebase_core/firebase_core.dart';
+// Note: firebase_options.dart wali file tab generate hogi jab tum flutterfire configure chalaoge.
+// Agar tumne explicitly options set nahi kiye hain, toh Firebase.initializeApp() bina options ke bhi chal sakta hai
+// par recommended yahi hai ki Firebase CLI use karke ise generate karo.
 
 // Global navigator key to access the navigator from anywhere
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -16,13 +21,23 @@ Future<void> main() async {
   // Load environment variables from .env file
   await dotenv.load(fileName: ".env");
 
+  // 🌟 FIREBASE INITIALIZE KARO YAHAN 🌟
+  // Note: Agar tumhara app crash hota hai "Firebase Options missing" ki wajah se,
+  // toh tumhe terminal me `flutterfire configure` chalana padega.
+  try {
+    await Firebase.initializeApp();
+    debugPrint("✅ Firebase Initialized Successfully");
+  } catch (e) {
+    debugPrint("❌ Firebase Initialization Error: $e");
+  }
+
   // Initialize Supabase
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  // 🔥 User ka login status monitor karo for instant block logic
+  // User ka login status monitor karo for instant block logic
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     final AuthChangeEvent event = data.event;
     if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.initialSession) {
