@@ -6,14 +6,20 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/services/user_status_service.dart';
 
-// 🌟 FIREBASE IMPORTS ADD KIYE 🌟
+// 🌟 FIREBASE IMPORTS 🌟
 import 'package:firebase_core/firebase_core.dart';
-// Note: firebase_options.dart wali file tab generate hogi jab tum flutterfire configure chalaoge.
-// Agar tumne explicitly options set nahi kiye hain, toh Firebase.initializeApp() bina options ke bhi chal sakta hai
-// par recommended yahi hai ki Firebase CLI use karke ise generate karo.
+import 'package:firebase_messaging/firebase_messaging.dart'; // ADDED THIS
 
 // Global navigator key to access the navigator from anywhere
 final navigatorKey = GlobalKey<NavigatorState>();
+
+// 🌟 ADDED: Background Message Handler 🌟
+// Ye function app band hone par bhi notification receive karne me help karta hai
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint("Handling a background message: ${message.messageId}");
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,12 +27,32 @@ Future<void> main() async {
   // Load environment variables from .env file
   await dotenv.load(fileName: ".env");
 
-  // 🌟 FIREBASE INITIALIZE KARO YAHAN 🌟
-  // Note: Agar tumhara app crash hota hai "Firebase Options missing" ki wajah se,
-  // toh tumhe terminal me `flutterfire configure` chalana padega.
+  // 🌟 FIREBASE INITIALIZE 🌟
   try {
     await Firebase.initializeApp();
     debugPrint("✅ Firebase Initialized Successfully");
+
+    // 🌟 ADDED: FCM Setup & Permissions 🌟
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    // Android 13+ ke liye notification permission maangna zaroori hai
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    debugPrint('User granted permission: ${settings.authorizationStatus}');
+
+    // Background listener set karna
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Jab app open ho (Foreground) tab notification handle karna
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Foreground Message Received: ${message.notification?.title}');
+      // Agar aap chahte ho ki app open hone par bhi upar se banner aaye, 
+      // toh yahan flutter_local_notifications plugin ka use karna padega (baad me kar lenge agar zaroorat hui)
+    });
+
   } catch (e) {
     debugPrint("❌ Firebase Initialization Error: $e");
   }

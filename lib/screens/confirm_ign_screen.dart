@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+// 🌟 ADDED: Firebase Messaging Import 🌟
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class ConfirmJoinScreen extends StatefulWidget {
   final int tournamentId;
@@ -89,6 +91,16 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
 
       final tRes = await Supabase.instance.client.from('tournaments').select('filled').eq('id', widget.tournamentId).single();
       await Supabase.instance.client.from('tournaments').update({'filled': (tRes['filled'] ?? 0) + widget.selectedSlots.length}).eq('id', widget.tournamentId);
+
+      // 🌟 ADDED: FCM Topic Subscription 🌟
+      // Ye database entries confirm hone ke BAAD trigger hoga
+      try {
+        await FirebaseMessaging.instance.subscribeToTopic('tournament_${widget.tournamentId}');
+        print("✅ Successfully subscribed to topic: tournament_${widget.tournamentId}");
+      } catch (fcmError) {
+        print("⚠️ FCM Subscription Error: $fcmError");
+        // Error aaye bhi toh join fail nahi hona chahiye
+      }
 
       // 🌟 MAGIC LOGIC: Popup ko safely show karna bina error ke 🌟
       if (mounted) {
