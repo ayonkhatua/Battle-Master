@@ -19,7 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
-  // Controllers for Password Reset (Ab Old Password bhi yahan hai)
+  // Controllers for Password Reset
   final _oldPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -53,15 +53,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .eq('id', user.id)
           .single();
 
-      setState(() {
-        _usernameController.text = response['username'] ?? '';
-        _phoneController.text = response['mobile'] ?? '';
-        _emailController.text = response['email'] ?? user.email ?? '';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _usernameController.text = response['username'] ?? '';
+          _phoneController.text = response['mobile'] ?? '';
+          _emailController.text = response['email'] ?? user.email ?? '';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      print("Error fetching profile: $e");
-      setState(() => _isLoading = false);
+      debugPrint("Error fetching profile: $e");
+      if (mounted) setState(() => _isLoading = false);
       _showMessage("❌ Failed to load profile.", isError: true);
     }
   }
@@ -73,19 +75,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) return;
 
     try {
-      // Update custom users table
+      // 🌟 FIX: Email ko yahan se hata diya hai taaki DB me update na jaye
       await Supabase.instance.client.from('users').update({
         'username': _usernameController.text.trim(),
         'mobile': _phoneController.text.trim(),
-        'email': _emailController.text.trim(),
       }).eq('id', user.id);
 
       _showMessage("✅ Profile updated successfully.");
     } catch (e) {
-      print("Error updating profile: $e");
+      debugPrint("Error updating profile: $e");
       _showMessage("❌ Failed to update profile.", isError: true);
     } finally {
-      setState(() => _isSavingProfile = false);
+      if (mounted) setState(() => _isSavingProfile = false);
     }
   }
 
@@ -116,13 +117,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null || user.email == null) throw Exception("User not logged in");
 
-      // 1. Verify Old Password by attempting to sign in
+      // Verify Old Password
       await Supabase.instance.client.auth.signInWithPassword(
         email: user.email!,
         password: oldPass,
       );
 
-      // 2. If it reaches here, Old Password is correct. Update to New Password.
+      // Update to New Password
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: newPass),
       );
@@ -134,17 +135,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showMessage("🔑 Password changed successfully!");
       
     } on AuthException catch (e) {
-      // Check if the error is because of a wrong old password
       if (e.message.contains("Invalid login credentials") || e.message.contains("Invalid credentials")) {
         _showMessage("❌ Old password is incorrect.", isError: true);
       } else {
         _showMessage("❌ ${e.message}", isError: true);
       }
     } catch (e) {
-      print("Error changing password: $e");
+      debugPrint("Error changing password: $e");
       _showMessage("❌ Failed to change password.", isError: true);
     } finally {
-      setState(() => _isChangingPassword = false);
+      if (mounted) setState(() => _isChangingPassword = false);
     }
   }
 
@@ -152,16 +152,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _logout() async {
     try {
       await Supabase.instance.client.auth.signOut();
-      // Navigate to login and clear stack
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
         );
       }
     } catch (e) {
-      print("Logout error: $e");
+      debugPrint("Logout error: $e");
       _showMessage("❌ Logout failed.", isError: true);
     }
   }
@@ -171,9 +170,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
-          backgroundColor: isError ? const Color(0xFF7f1d1d) : const Color(0xFF065f46),
-          duration: const Duration(seconds: 3),
+          content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -182,91 +182,103 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF111827), // Dark theme
+      backgroundColor: const Color(0xFF0B1120), // 🌟 Deep Dark Esports Theme
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1f2937),
-        title: const Text("Profile", style: TextStyle(color: Colors.white, fontSize: 20)),
+        backgroundColor: Colors.transparent,
+        title: const Text("MY PROFILE", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 2,
+        iconTheme: const IconThemeData(color: Color(0xFF3B82F6)),
+        elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
           : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Avatar Profile Picture
+                  // 🌟 Premium Avatar Section
                   Center(
                     child: Container(
-                      width: 100,
-                      height: 100,
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.grey[800],
-                        // backgroundImage: const AssetImage('assets/profile.png'), // Uncomment when you add the image
+                        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.5), width: 2),
+                        boxShadow: [
+                          BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.2), blurRadius: 20, spreadRadius: 2)
+                        ],
                       ),
-                      child: const Icon(Icons.person, size: 60, color: Colors.white54),
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundColor: const Color(0xFF1E293B),
+                        child: Text(
+                          _usernameController.text.isNotEmpty ? _usernameController.text[0].toUpperCase() : "?",
+                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Text(
+                      _usernameController.text.toUpperCase(),
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1.0),
                     ),
                   ),
                   const SizedBox(height: 30),
 
-                  // Edit Profile Section
-                  const Text("Edit Profile", style: TextStyle(fontSize: 18, color: Color(0xFFfacc15), fontWeight: FontWeight.bold)),
+                  // 🌟 Personal Details Section
+                  _buildSectionHeader("PERSONAL DETAILS", Icons.person),
                   const SizedBox(height: 15),
-                  _buildInputLabel("Username"),
-                  _buildTextField(_usernameController),
+                  _buildTextField(_usernameController, "Username", Icons.badge),
                   const SizedBox(height: 15),
-                  _buildInputLabel("Phone Number"),
-                  _buildTextField(_phoneController, keyboardType: TextInputType.phone),
+                  _buildTextField(_phoneController, "Phone Number", Icons.phone, keyboardType: TextInputType.phone),
                   const SizedBox(height: 15),
-                  _buildInputLabel("Email"),
-                  _buildTextField(_emailController, keyboardType: TextInputType.emailAddress),
+                  
+                  // 🌟 FIX: Email is now Read-Only with a Lock Icon
+                  _buildTextField(_emailController, "Email Address", Icons.email, keyboardType: TextInputType.emailAddress, isReadOnly: true),
+                  
                   const SizedBox(height: 20),
                   _buildButton(
-                    text: "Save",
+                    text: "SAVE PROFILE",
                     isLoading: _isSavingProfile,
-                    color: const Color(0xFF2563eb),
+                    color: const Color(0xFF3B82F6), // Blue
+                    icon: Icons.save_rounded,
                     onPressed: _saveProfile,
                   ),
 
                   const SizedBox(height: 40),
 
-                  // Reset Password Section
-                  const Text("Reset Password", style: TextStyle(fontSize: 18, color: Color(0xFFfacc15), fontWeight: FontWeight.bold)),
+                  // 🌟 Security Section
+                  _buildSectionHeader("SECURITY", Icons.security),
                   const SizedBox(height: 15),
-                  
-                  // 🔥 OLD PASSWORD FIELD ADDED HERE 🔥
-                  _buildInputLabel("Old Password"),
-                  _buildTextField(_oldPasswordController, obscureText: true),
+                  _buildTextField(_oldPasswordController, "Old Password", Icons.lock_clock, obscureText: true),
                   const SizedBox(height: 15),
-                  
-                  _buildInputLabel("New Password"),
-                  _buildTextField(_newPasswordController, obscureText: true),
+                  _buildTextField(_newPasswordController, "New Password", Icons.lock_reset, obscureText: true),
                   const SizedBox(height: 15),
-                  
-                  _buildInputLabel("Confirm New Password"),
-                  _buildTextField(_confirmPasswordController, obscureText: true),
+                  _buildTextField(_confirmPasswordController, "Confirm New Password", Icons.lock, obscureText: true),
                   const SizedBox(height: 20),
-                  
                   _buildButton(
-                    text: "Reset Password",
+                    text: "UPDATE PASSWORD",
                     isLoading: _isChangingPassword,
-                    color: const Color(0xFF2563eb),
+                    color: const Color(0xFF10B981), // Green
+                    icon: Icons.key_rounded,
                     onPressed: _changePassword,
                   ),
 
                   const SizedBox(height: 40),
 
-                  // Logout Button
+                  // 🌟 Danger Zone
+                  _buildSectionHeader("DANGER ZONE", Icons.warning_rounded, color: const Color(0xFFEF4444)),
+                  const SizedBox(height: 15),
                   _buildButton(
-                    text: "Logout",
+                    text: "LOGOUT",
                     isLoading: false,
-                    color: const Color(0xFFdc2626), // Red color
+                    color: const Color(0xFFEF4444), // Red
+                    icon: Icons.logout_rounded,
                     onPressed: _logout,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -274,41 +286,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // Custom UI Builders
-  Widget _buildInputLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(text, style: const TextStyle(fontSize: 14, color: Color(0xFF9ca3af))),
+  Widget _buildSectionHeader(String title, IconData icon, {Color color = const Color(0xFFFACC15)}) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+        ),
+      ],
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, {bool obscureText = false, TextInputType keyboardType = TextInputType.text}) {
+  // 🌟 FIX: isReadOnly parameter added
+  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {bool obscureText = false, TextInputType keyboardType = TextInputType.text, bool isReadOnly = false}) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      readOnly: isReadOnly, // Field locked if true
+      style: TextStyle(color: isReadOnly ? Colors.white54 : Colors.white, fontSize: 14, fontWeight: FontWeight.w600), // Dim text if locked
       decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+        prefixIcon: Icon(icon, color: isReadOnly ? Colors.grey : const Color(0xFF3B82F6), size: 20),
+        
+        // Lock icon added if readOnly
+        suffixIcon: isReadOnly ? const Icon(Icons.lock, color: Colors.white38, size: 18) : null,
+        
         filled: true,
-        fillColor: const Color(0xFF1f2937),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide.none),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        // Darker background if locked
+        fillColor: isReadOnly ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFF1E293B).withOpacity(0.8), 
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isReadOnly ? Colors.transparent : const Color(0xFF3B82F6), width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }
 
-  Widget _buildButton({required String text, required bool isLoading, required Color color, required VoidCallback onPressed}) {
+  Widget _buildButton({required String text, required bool isLoading, required Color color, required IconData icon, required VoidCallback onPressed}) {
     return SizedBox(
       width: double.infinity,
+      height: 55,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          foregroundColor: Colors.white,
+          elevation: 8,
+          shadowColor: color.withOpacity(0.4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         onPressed: isLoading ? null : onPressed,
         child: isLoading
-            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-            : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 20),
+                  const SizedBox(width: 8),
+                  Text(text, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1.0)),
+                ],
+              ),
       ),
     );
   }

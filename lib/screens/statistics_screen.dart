@@ -18,7 +18,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     _statisticsFuture = _fetchStatistics();
   }
 
-  // 🌟 SAFE & EFFICIENT RPC CALL
+  // 🌟 FIXED: Direct Table Fetch aur Tournament ID & Date formatting
   Future<List<Map<String, dynamic>>> _fetchStatistics() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
@@ -27,19 +27,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
     try {
       final response = await Supabase.instance.client
-          .rpc('get_user_statistics', params: {'p_user_id': user.id});
-
-      if (response == null) return [];
+          .from('statistics')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
 
       final List<Map<String, dynamic>> matches = (response as List).map((item) {
         final data = item as Map<String, dynamic>;
-        String timeString = data['start_time'] ?? '';
+        
+        String timeString = data['created_at'] ?? ''; 
         String formattedTime = 'Unknown Time';
         
-        // Safe Date Parsing taaki app crash na ho
+        // Date format like Screenshot: 28/03/2026 10:00 pm
         try {
           if (timeString.isNotEmpty) {
-            formattedTime = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(timeString));
+            formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.parse(timeString).toLocal());
           }
         } catch (e) {
           debugPrint("Date parse error: $e");
@@ -47,21 +49,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             
         return {
           'title': data['title'] ?? 'Unknown Match',
-          'datetime': formattedTime,
-          'paid': int.tryParse(data['total_paid'].toString()) ?? 0,
-          'won': int.tryParse(data['total_won'].toString()) ?? 0,
+          'tournament_id': data['tournament_id']?.toString() ?? '',
+          'datetime': formattedTime.toLowerCase(), // pm/am chote case me
+          'paid': int.tryParse(data['paid'].toString()) ?? 0, 
+          'won': int.tryParse(data['won'].toString()) ?? 0,
         };
       }).toList();
 
       return matches;
 
     } catch (e) {
-      debugPrint("Error fetching statistics via RPC: $e");
+      debugPrint("Error fetching statistics: $e");
       return [];
     }
   }
 
-  // Helper method: App refresh karne ke liye
   Future<void> _refreshData() async {
     setState(() {
       _statisticsFuture = _fetchStatistics();
@@ -71,19 +73,19 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1120), // 🌟 Deep Dark Blue Theme
+      backgroundColor: const Color(0xFF0B1120), // Dark Background
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.transparent, // Transparent AppBar
         title: const Text("MY STATISTICS", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Color(0xFF3B82F6)), // Blue back button
+        centerTitle: true, 
         elevation: 0,
+        iconTheme: const IconThemeData(color: Color(0xFF3B82F6)), // Blue icon
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _statisticsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))); // Blue Loader
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))); 
           }
           if (snapshot.hasError) {
             return Center(child: Text("Error loading data", style: const TextStyle(color: Colors.white54)));
@@ -95,181 +97,124 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             onRefresh: _refreshData,
             color: const Color(0xFF0B1120),
             backgroundColor: const Color(0xFF3B82F6),
-            child: matches.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                // 🌟 HEADER ROW (Dark Theme with your exact headers)
+                Container(
+                  color: const Color(0xFF1E293B), // Darker header row
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
+                  child: Row(
                     children: const [
-                      SizedBox(height: 150),
-                      Center(child: Text("No tournament results available yet.", style: TextStyle(color: Colors.white54, fontSize: 16))),
-                    ],
-                  )
-                : ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    children: [
-                      _buildSummaryCard(matches), // 🌟 Naya Summary Section
-                      const SizedBox(height: 25),
-                      const Text(
-                        "MATCH HISTORY",
-                        style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.5),
+                      SizedBox(
+                        width: 25,
+                        child: Text("#", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14)),
                       ),
-                      const SizedBox(height: 15),
-                      ...matches.map((m) => _buildMatchCard(m)),
+                      Expanded(
+                        child: Text("Match Info", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14)),
+                      ),
+                      SizedBox(
+                        width: 50,
+                        child: Text("Paid", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14)),
+                      ),
+                      SizedBox(
+                        width: 50,
+                        child: Text("Won", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14)),
+                      ),
                     ],
                   ),
+                ),
+                
+                // 🌟 LIST VIEW (Dark rows with divider)
+                Expanded(
+                  child: matches.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 150),
+                            Center(child: Text("No match history found yet.", style: TextStyle(color: Colors.white54, fontSize: 16))),
+                          ],
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: matches.length,
+                          itemBuilder: (context, index) {
+                            return _buildListRow(matches[index], index + 1);
+                          },
+                        ),
+                ),
+              ],
+            ),
           );
         },
       ),
     );
   }
 
-  // 🌟 Naya Feature: Lifetime Summary Card
-  Widget _buildSummaryCard(List<Map<String, dynamic>> matches) {
-    int totalPaid = 0;
-    int totalWon = 0;
-    
-    for (var match in matches) {
-      totalPaid += match['paid'] as int;
-      totalWon += match['won'] as int;
-    }
+  // 🌟 Dark Theme List Row Style
+  Widget _buildListRow(Map<String, dynamic> match, int index) {
+    // Title construction: "Battle Royale Classic - Match #36710"
+    String baseTitle = match['title'].toString();
+    String tId = match['tournament_id'];
+    String displayTitle = tId.isNotEmpty ? "$baseTitle - Match #$tId" : baseTitle;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 15),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: const Color(0xFF0F172A), // Dark row background
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 1), // Subtle divider line
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.5), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF3B82F6).withOpacity(0.15),
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
-      child: Column(
-        children: [
-          const Text("LIFETIME PERFORMANCE", style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildSummaryStat("ENTRY PAID", totalPaid, const Color(0xFFEF4444)), // Red
-              Container(height: 40, width: 1, color: Colors.white24), // Divider
-              _buildSummaryStat("TOTAL WON", totalWon, const Color(0xFF10B981)), // Green
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryStat(String title, int amount, Color amountColor) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.network('https://img.icons8.com/emoji/48/coin-emoji.png', width: 20, height: 20),
-            const SizedBox(width: 6),
-            Text(
-              amount.toString(),
-              style: TextStyle(color: amountColor, fontSize: 24, fontWeight: FontWeight.w900),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(title, style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
-      ],
-    );
-  }
-
-  // 🌟 Premium Match History Card (Replaces the boring table)
-  Widget _buildMatchCard(Map<String, dynamic> match) {
-    int won = match['won'] as int;
-    bool isWinner = won > 0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B).withOpacity(0.8), // Glassmorphic Dark
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Title and Icon
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  match['title'].toString().toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.5),
-                  maxLines: 1,
+          // 1. Index Number
+          SizedBox(
+            width: 25,
+            child: Text(
+              "$index",
+              style: const TextStyle(color: Colors.white54, fontSize: 14, fontWeight: FontWeight.w400),
+            ),
+          ),
+          
+          // 2. Match Info (Title + Date)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayTitle,
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600), // White text for title
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              if (isWinner)
-                const Icon(Icons.emoji_events, color: Color(0xFFFACC15), size: 20), // Trophy icon for win
-            ],
-          ),
-          const SizedBox(height: 4),
-          
-          // Row 2: Date & Time
-          Text(
-            match['datetime'],
-            style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w600),
+                const SizedBox(height: 6),
+                Text(
+                  match['datetime'],
+                  style: const TextStyle(color: Colors.white38, fontSize: 12), // Dimmer text for date
+                ),
+              ],
+            ),
           ),
           
-          const SizedBox(height: 12),
-          const Divider(color: Colors.white10, height: 1),
-          const SizedBox(height: 12),
-
-          // Row 3: Paid & Won Stats
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Entry Fee
-              Row(
-                children: [
-                  const Text("ENTRY: ", style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800)),
-                  Image.network('https://img.icons8.com/emoji/48/coin-emoji.png', width: 14, height: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    match['paid'].toString(),
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              
-              // Winnings
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isWinner ? const Color(0xFF10B981).withOpacity(0.15) : Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Text("WON: ", style: TextStyle(color: isWinner ? const Color(0xFF10B981) : Colors.white54, fontSize: 11, fontWeight: FontWeight.w800)),
-                    Image.network('https://img.icons8.com/emoji/48/coin-emoji.png', width: 14, height: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      match['won'].toString(),
-                      style: TextStyle(color: isWinner ? const Color(0xFF10B981) : Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          // 3. Paid Amount
+          SizedBox(
+            width: 50,
+            child: Text(
+              match['paid'].toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+          
+          // 4. Won Amount
+          SizedBox(
+            width: 50,
+            child: Text(
+              match['won'].toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
