@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:battle_master/screens/blocked_screen.dart'; // Apna path verify kar lena
+import 'package:battle_master/screens/blocked_screen.dart'; 
 import 'package:battle_master/screens/auth_check_screen.dart';
 
 class UserStatusService {
   static RealtimeChannel? _statusChannel;
+  static String? _lastKnownStatus; // 🌟 ADDED: Loop se bachne ka safeguard
 
   static void startListening(GlobalKey<NavigatorState> navigatorKey) {
     final client = Supabase.instance.client;
@@ -12,25 +13,30 @@ class UserStatusService {
 
     if (userId == null) return;
 
-    // 🔥 1. Sabse pehle current status check karo (agar user re-login karke bypass karne ki koshish kare)
+    // 🔥 1. Sabse pehle current status check karo
     client.from('users').select('status').eq('id', userId).maybeSingle().then((response) {
-      if (response != null && response['status'] == 'blocked') {
-        // Seedha BlockedScreen pe bhejo
-        navigatorKey.currentState?.pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const BlockedScreen()),
-          (route) => false,
-        );
+      if (response != null) {
+        final currentStatus = response['status'];
+        
+        // Agar status sach mein blocked hai aur pehle se blocked screen pe nahi hain
+        if (currentStatus == 'blocked' && _lastKnownStatus != 'blocked') {
+          _lastKnownStatus = 'blocked';
+          navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const BlockedScreen()),
+            (route) => false,
+          );
+        } else {
+          _lastKnownStatus = currentStatus; // Jo bhi status hai usko yaad rakho
+        }
       }
     }).catchError((e) {
       debugPrint("Error checking initial status: $e");
     });
 
-    // Agar pehle se koi channel chal raha hai (jaise re-login hone par), toh use clear karo
     if (_statusChannel != null) {
       client.removeChannel(_statusChannel!);
     }
 
-    // Supabase Realtime se users table me apna status listen karo
     _statusChannel = client
         .channel('public:users:status_$userId')
         .onPostgresChanges(
@@ -45,14 +51,17 @@ class UserStatusService {
           callback: (payload) async {
             final newStatus = payload.newRecord['status'];
             
+            // 🌟 MAGIC LOGIC: Agar naya status purane jaisa hi hai, toh kuch mat karo (Loop Preventer)
+            if (newStatus == _lastKnownStatus) return;
+            
+            _lastKnownStatus = newStatus; // Update last known status
+
             if (newStatus == 'blocked') {
-              // Global Navigator Key ka use karke BlockedScreen par bhej do
               navigatorKey.currentState?.pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const BlockedScreen()),
                 (route) => false,
               );
             } else if (newStatus == 'active') {
-              // 🔥 Agar admin wapas unblock kar de, toh user ko auto-restart karke wapas app me bhej do
               navigatorKey.currentState?.pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
                 (route) => false,

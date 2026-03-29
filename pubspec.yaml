@@ -27,6 +27,7 @@ dependencies:
   url_launcher: ^6.3.2
   carousel_slider: ^5.1.2
   shared_preferences: ^2.5.5
+  qr_flutter: ^4.1.0
   # 'screens' package is not a standard package, maybe it's a local reference? Removing it for now as it may cause errors.
   # screens: ^2.5.0 
 
@@ -35,6 +36,16 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   change_app_package_name: ^1.5.0
+  # 🌟 LOGO PACKAGE ADDED HERE 🌟
+  flutter_launcher_icons: ^0.13.1
+
+# 🌟 LOGO CONFIGURATION BLOCK 🌟
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/images/logo.png" # Dhyan rakhna, image is location par zaroor ho!
+  min_sdk_android: 23 
+  adaptive_icon_background: "#0f172a" 
 
 flutter:
   uses-material-design: true

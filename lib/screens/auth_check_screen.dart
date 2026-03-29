@@ -4,11 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/screens/blocked_screen.dart';
 
-// ⚠️ ZAROORI KAAM: 
-// Agar aapke Login aur Home screen ka naam kuch aur hai, toh yahan sahi file import karna
-// import 'package:myapp/screens/login_screen.dart'; 
-// import 'package:myapp/screens/home_screen.dart'; 
-
 class AuthCheckScreen extends StatefulWidget {
   const AuthCheckScreen({super.key});
 
@@ -43,7 +38,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
           .from('users')
           .select('status')
           .eq('id', user.id)
-          .maybeSingle(); // maybeSingle() isliye taaki error crash na kare
+          .maybeSingle();
 
       // Agar user login hai par profile database me nahi bani
       if (response == null) {
@@ -56,9 +51,13 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
 
       // 3. Blocked Check
       if (status == 'blocked') {
-        // Agar app open karte waqt hi user blocked hai, toh seedha BlockedScreen par bhejo
         if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const BlockedScreen()));
+          // 🔥 UPDATE: History delete karke bhejo
+          Navigator.pushAndRemoveUntil(
+            context, 
+            MaterialPageRoute(builder: (context) => const BlockedScreen()),
+            (route) => false
+          );
         }
       } else {
         // Sab sahi hai, Home Screen par bhejo
@@ -66,7 +65,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
       }
     } catch (e) {
       print("Auth Check Error: $e");
-      // Agar internet na ho ya koi aur error aaye
       _goToLogin(message: "⚠️ Network Error. Please check your internet.");
     }
   }
@@ -80,11 +78,11 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
       );
     }
     
-    // 🔥 NAVIGATION ON KAR DIYA HAI 🔥
-    // Agar IDX me error (Red line) aaye, toh LoginScreen wali file import kar lena upar
-    Navigator.pushReplacement(
+    // 🔥 UPDATE: PushReplacement ki jagah PushAndRemoveUntil
+    Navigator.pushAndRemoveUntil(
       context, 
       MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false
     );
     print("User Needs to Login...");
   }
@@ -92,11 +90,11 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
   void _goToHome() {
     if (!mounted) return;
 
-    // 🔥 NAVIGATION ON KAR DIYA HAI 🔥
-    // Agar IDX me error (Red line) aaye, toh HomeScreen wali file import kar lena upar
-    Navigator.pushReplacement(
+    // 🔥 UPDATE: PushReplacement ki jagah PushAndRemoveUntil
+    Navigator.pushAndRemoveUntil(
       context, 
       MaterialPageRoute(builder: (context) => const HomeScreen()),
+      (route) => false
     );
     print("Going to Home Screen...");
   }

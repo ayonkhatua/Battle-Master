@@ -7,8 +7,8 @@ serve(async (req) => {
     const record = payload.record
     const old_record = payload.old_record
 
-    // Check karo ki kya Room ID nayi daali gayi hai ya change hui hai
-    if (record && record.roomId && record.roomId !== old_record?.roomId) {
+    // 🌟 UPDATE 1: Yahan roomId ko room_id kar diya gaya hai
+    if (record && record.room_id && record.room_id !== old_record?.room_id) {
       
       const clientEmail = Deno.env.get("FIREBASE_CLIENT_EMAIL")
       // Ye replace function zaroori hai taaki key ka format sahi rahe
@@ -35,7 +35,8 @@ serve(async (req) => {
           topic: `tournament_${record.id}`,
           notification: {
             title: "🎮 Room Ready! Join Fast",
-            body: `Room ID: ${record.roomId} | Password: ${record.password}`
+            // 🌟 UPDATE 2: Yahan room_id aur room_password set kar diya hai
+            body: `Room ID: ${record.room_id} | Password: ${record.room_password}`
           },
           android: {
             priority: "high" 
@@ -62,8 +63,8 @@ serve(async (req) => {
       })
     }
 
-    // Agar room id update nahi hui toh kuch mat karo
-    return new Response(JSON.stringify({ success: true, message: "No room ID update detected." }), {
+    // Agar room_id update nahi hui toh kuch mat karo
+    return new Response(JSON.stringify({ success: true, message: "No room_id update detected." }), {
       headers: { "Content-Type": "application/json" },
       status: 200,
     })

@@ -8,13 +8,12 @@ import 'package:battle_master/services/user_status_service.dart';
 
 // 🌟 FIREBASE IMPORTS 🌟
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // ADDED THIS
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 // Global navigator key to access the navigator from anywhere
 final navigatorKey = GlobalKey<NavigatorState>();
 
-// 🌟 ADDED: Background Message Handler 🌟
-// Ye function app band hone par bhi notification receive karne me help karta hai
+// Background Message Handler
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -32,10 +31,8 @@ Future<void> main() async {
     await Firebase.initializeApp();
     debugPrint("✅ Firebase Initialized Successfully");
 
-    // 🌟 ADDED: FCM Setup & Permissions 🌟
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-    // Android 13+ ke liye notification permission maangna zaroori hai
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       badge: true,
@@ -43,14 +40,10 @@ Future<void> main() async {
     );
     debugPrint('User granted permission: ${settings.authorizationStatus}');
 
-    // Background listener set karna
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // Jab app open ho (Foreground) tab notification handle karna
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       debugPrint('Foreground Message Received: ${message.notification?.title}');
-      // Agar aap chahte ho ki app open hone par bhi upar se banner aaye, 
-      // toh yahan flutter_local_notifications plugin ka use karna padega (baad me kar lenge agar zaroorat hui)
     });
 
   } catch (e) {
@@ -63,12 +56,19 @@ Future<void> main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  // User ka login status monitor karo for instant block logic
+  // 🌟 FIX 1: Prevent Multiple Listeners 🌟
+  // Ek variable track karega ki listener pehle se chal raha hai ya nahi
+  bool isUserStatusListening = false;
+
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     final AuthChangeEvent event = data.event;
     if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.initialSession) {
-      // Jaise hi user login ho ya app start ho aur user logged in ho, block listener start kar do
-      UserStatusService.startListening(navigatorKey);
+      if (!isUserStatusListening) {
+        isUserStatusListening = true;
+        UserStatusService.startListening(navigatorKey);
+      }
+    } else if (event == AuthChangeEvent.signedOut) {
+      isUserStatusListening = false; // Logout hone par reset kar do
     }
   });
 
@@ -101,6 +101,9 @@ Future<void> main() async {
     initialScreen = const MaintenanceScreen();
   }
 
+  // 🌟 FIX 2: Track if we were in a blocked state 🌟
+  bool wasMaintenanceOrUpdate = isMaintenanceOn || isUpdateAvailable;
+
   // Realtime Database Listener
   Supabase.instance.client
       .channel('public:app_config')
@@ -118,6 +121,7 @@ Future<void> main() async {
 
           // Priority 1: Force Update
           if (newUpdateStatus) {
+            wasMaintenanceOrUpdate = true;
             navigatorKey.currentState?.pushAndRemoveUntil(
               MaterialPageRoute(builder: (context) => UpdateScreen(appLink: link)),
               (route) => false,
@@ -125,6 +129,7 @@ Future<void> main() async {
           } 
           // Priority 2: Maintenance Mode
           else if (newMaintenanceStatus) {
+            wasMaintenanceOrUpdate = true;
             navigatorKey.currentState?.pushAndRemoveUntil(
               MaterialPageRoute(builder: (context) => const MaintenanceScreen()),
               (route) => false,
@@ -132,10 +137,14 @@ Future<void> main() async {
           } 
           // Priority 3: Normal Status (All clear)
           else {
-            navigatorKey.currentState?.pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
-              (route) => false,
-            );
+            // 🌟 MAGIC FIX: Sirf tabhi AuthCheck par bhejo jab pichli screen Maintenance/Update thi
+            if (wasMaintenanceOrUpdate) {
+              wasMaintenanceOrUpdate = false;
+              navigatorKey.currentState?.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const AuthCheckScreen()),
+                (route) => false,
+              );
+            }
           }
         },
       )
