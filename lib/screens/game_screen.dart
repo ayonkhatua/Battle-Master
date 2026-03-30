@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:async'; 
 import 'package:battle_master/screens/rules_screen.dart'; 
-import 'package:battle_master/screens/results_screen.dart'; // 🌟 NAYA IMPORT ADD KIYA HAI
+import 'package:battle_master/screens/results_screen.dart'; 
 
 class TournamentScreen extends StatefulWidget {
   final String mode;
@@ -25,14 +25,20 @@ class _TournamentScreenState extends State<TournamentScreen> {
   // Store user's joined tournament IDs
   Set<int> _myJoinedTournaments = {};
 
+  // 🌟 NAYA: User Wallet Balance store karne ke liye
+  int _userBalance = 0;
+  bool _isBalanceLoading = true;
+
   @override
   void initState() {
     super.initState();
     _fetchTournaments();
+    _fetchUserBalance(); // 🌟 NAYA: Balance fetch start karo
     
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) {
         _fetchTournaments(silentRefresh: true);
+        _fetchUserBalance(); // Har 1 min baad balance bhi check karo
       }
     });
   }
@@ -41,6 +47,33 @@ class _TournamentScreenState extends State<TournamentScreen> {
   void dispose() {
     _refreshTimer?.cancel(); 
     super.dispose();
+  }
+
+  // 🌟 NAYA FUNCTION: Fetch Actual Wallet Balance 🌟
+  Future<void> _fetchUserBalance() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      if (mounted) setState(() => _isBalanceLoading = false);
+      return;
+    }
+
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('wallet_balance')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (response != null && mounted) {
+        setState(() {
+          _userBalance = response['wallet_balance'] ?? 0;
+          _isBalanceLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching wallet balance: $e");
+      if (mounted) setState(() => _isBalanceLoading = false);
+    }
   }
 
   Future<void> _fetchTournaments({bool silentRefresh = false}) async {
@@ -202,7 +235,11 @@ class _TournamentScreenState extends State<TournamentScreen> {
                 children: [
                   const Icon(Icons.monetization_on, color: Colors.amber, size: 16),
                   const SizedBox(width: 4),
-                  const Text("40.0", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  // 🌟 FIXED: Ab actual user balance dikhayega (ya Loading agar data fetch ho raha hai)
+                  Text(
+                    _isBalanceLoading ? "..." : _userBalance.toString(), 
+                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+                  ),
                 ],
               ),
             )
@@ -264,7 +301,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
     return GestureDetector(
       onTap: () {
-        // 🌟 NAYA LOGIC: Agar Result tab hai, to sidha ResultsScreen pe bhejo 🌟
         if (isResult) {
           Navigator.push(context, MaterialPageRoute(builder: (_) => ResultsScreen(tournamentId: tId)));
         } else {
@@ -430,7 +466,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
-                              // Watch button also takes to Result for now (you can add YT link later if needed)
                               Navigator.push(context, MaterialPageRoute(builder: (_) => ResultsScreen(tournamentId: tId)));
                             },
                             child: Container(

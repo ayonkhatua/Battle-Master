@@ -15,9 +15,10 @@ import 'package:battle_master/pages/faq_page.dart';
 import 'package:battle_master/pages/privacy_policy_page.dart';
 import 'package:battle_master/pages/terms_page.dart';
 import 'package:battle_master/screens/contact_screen.dart';
-import 'package:battle_master/screens/notifications_screen.dart';
 
-// 🌟 ADD THIS IMPORT FOR NOTIFICATIONS 🌟
+// 🌟 FIXED BACK TO YOUR ORIGINAL FILENAME 🌟
+import 'package:battle_master/screens/notifications_screen.dart'; 
+
 import 'package:battle_master/services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -36,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     
-    // 🌟 INITIALIZE NOTIFICATIONS YAHAN HOGA 🌟
     NotificationService.initialize();
 
     _userDataFuture = _fetchUserData();
@@ -50,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
           .select('image_url, action_link')
           .eq('is_active', true)
           .order('created_at', ascending: false);
-      debugPrint("Banners fetched successfully: $response");
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       debugPrint("Error fetching banners: $e");
@@ -114,10 +113,10 @@ class _HomeScreenState extends State<HomeScreen> {
       future: _userDataFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(backgroundColor: Color(0xFF111827), body: Center(child: CircularProgressIndicator(color: Color(0xFFfacc15))));
+          return const Scaffold(backgroundColor: Color(0xFF0B1120), body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))));
         }
         if (snapshot.hasError || !snapshot.hasData) {
-          return const Scaffold(backgroundColor: Color(0xFF111827), body: Center(child: Text("Could not load data.", style: TextStyle(color: Colors.white))));
+          return const Scaffold(backgroundColor: Color(0xFF0B1120), body: Center(child: Text("Could not load data.", style: TextStyle(color: Colors.white))));
         }
 
         final userData = snapshot.data!;
@@ -129,32 +128,37 @@ class _HomeScreenState extends State<HomeScreen> {
         ];
 
         return Scaffold(
-          backgroundColor: const Color(0xFF111827),
+          backgroundColor: const Color(0xFF0B1120), // 🌟 Premium Deep Dark Theme
           appBar: AppBar(
-            backgroundColor: const Color(0xFF1f2937),
+            backgroundColor: const Color(0xFF0F172A),
             elevation: 2,
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Welcome back,", style: TextStyle(fontSize: 12, color: Colors.white)),
-                Text(userData['username'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFfacc15))),
+                const Text("Welcome back,", style: TextStyle(fontSize: 12, color: Colors.white54)),
+                Text(userData['username'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
               ],
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.notifications, color: Colors.white),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen())),
+                icon: const Icon(Icons.notifications_active_rounded, color: Color(0xFF3B82F6)), 
+                // 🌟 FIXED NAVIGATION CLASS NAME
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen())), 
               ),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const WalletScreen())),
                 child: Container(
                   margin: const EdgeInsets.only(right: 15, left: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: const Color(0xFF374151), borderRadius: BorderRadius.circular(15)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.monetization_on, color: Color(0xFFfacc15), size: 18),
-                      const SizedBox(width: 5),
+                      const Icon(Icons.monetization_on, color: Colors.amberAccent, size: 18),
+                      const SizedBox(width: 6),
                       Text("${userData['wallet_balance']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                     ],
                   ),
@@ -164,15 +168,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           body: screens[_currentIndex],
           bottomNavigationBar: BottomNavigationBar(
-            backgroundColor: const Color(0xFF1f2937),
-            selectedItemColor: const Color(0xFFfacc15),
-            unselectedItemColor: Colors.grey,
+            backgroundColor: const Color(0xFF0F172A),
+            selectedItemColor: const Color(0xFF3B82F6), 
+            unselectedItemColor: Colors.grey[600],
+            type: BottomNavigationBarType.fixed,
             currentIndex: _currentIndex,
             onTap: (index) => setState(() => _currentIndex = index),
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.attach_money), label: "Earn"),
-              BottomNavigationBarItem(icon: Icon(Icons.gamepad), label: "Play"),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: "Me"),
+              BottomNavigationBarItem(icon: Icon(Icons.attach_money_rounded), label: "Earn"),
+              BottomNavigationBarItem(icon: Icon(Icons.sports_esports_rounded), label: "Play"),
+              BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: "Me"),
             ],
           ),
         );
@@ -181,11 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildEarnTab() {
-    return const Center(child: Text("Coming Soon", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)));
+    return const Center(child: Text("Coming Soon...", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1.5)));
   }
 
   Widget _buildPlayTab() {
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -197,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
                   padding: EdgeInsets.only(bottom: 20),
-                  child: SizedBox(height: 160, child: Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))),
+                  child: SizedBox(height: 160, child: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))),
                 );
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -205,9 +211,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 160,
                   width: double.infinity,
                   margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
                   child: const Center(
-                    child: Text("No Active Banners Found", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+                    child: Text("No Active Banners", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
                   ),
                 );
               }
@@ -238,9 +244,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: Container(
                         width: double.infinity,
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: const Color(0xFF1f2937)),
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: const Color(0xFF1E293B)),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           child: Image.network(
                             imageUrl,
                             fit: BoxFit.cover,
@@ -256,49 +262,25 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           // --- END BANNER SYSTEM ---
 
-          const Center(
-            child: Text("My Matches", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))
-          ),
+          const Text("MY MATCHES", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1.5)),
           const SizedBox(height: 15),
-         Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-    // 1. Ongoing Matches ke liye
-    _buildMatchCard(
-      "Ongoing", 
-      Icons.sync, 
-      const Color(0xFF34d399), 
-      const OngoingScreen(isMyMatches: true), 
-    ),
-    
-    // 2. Upcoming 
-    _buildMatchCard(
-      "Upcoming", 
-      Icons.calendar_today, 
-      Colors.blue, 
-      const UpcomingScreen(), 
-    ),
-    
-    // 3. Completed Matches ke liye
-    _buildMatchCard(
-      "Completed", 
-      Icons.check_circle, 
-      const Color(0xFF10b981), 
-      const CompletedScreen(), 
-    ),
-  ],
-),
-          const SizedBox(height: 30),
-          const Center(
-            child: Text("Esports Games", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildMatchCard("Ongoing", Icons.sync, const Color(0xFFF59E0B), const OngoingScreen(isMyMatches: true)),
+              _buildMatchCard("Upcoming", Icons.calendar_today, const Color(0xFF3B82F6), const UpcomingScreen()), 
+              _buildMatchCard("Completed", Icons.check_circle, const Color(0xFF10B981), const CompletedScreen()), 
+            ],
           ),
+          const SizedBox(height: 35),
+          const Text("ESPORTS GAMES", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1.5)),
           const SizedBox(height: 15),
           GridView.count(
             crossAxisCount: 3,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
             children: [
               _buildGameBox("BATTLE ROYALE", "assets/images/battle.png"),
               _buildGameBox("CLASH SQUAD", "assets/images/clash.png"),
@@ -318,20 +300,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMeTab(Map<String, dynamic> userData) {
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          const CircleAvatar(
-            radius: 45, 
-            backgroundColor: Colors.grey, 
-            backgroundImage: AssetImage('assets/images/profile.png'),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.5), width: 2),
+            ),
+            child: CircleAvatar(
+              radius: 45, 
+              backgroundColor: const Color(0xFF1E293B),
+              child: Text(userData['username'].toString().toUpperCase()[0], style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(userData['username'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 12),
+          Text(userData['username'].toString().toUpperCase(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.0)),
+          
           Container(
             margin: const EdgeInsets.only(top: 20),
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -341,56 +332,52 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          _buildMenuItem("My Profile", Icons.person, const ProfileScreen()),
-          _buildMenuItem("My Wallet", Icons.account_balance_wallet, const WalletScreen()),
-          _buildMenuItem("My Statistics", Icons.bar_chart, const StatisticsScreen()),
-          _buildMenuItem("Notifications", Icons.notifications, const NotificationsScreen()),
-          _buildMenuItem("Contact Us", Icons.contact_mail, const ContactScreen()),
-          _buildMenuItem("FAQ", Icons.help, const FaqScreen()),
-          _buildMenuItem("Privacy Policy", Icons.privacy_tip, const PrivacyPolicyPage()),
-          _buildMenuItem("Terms & Conditions", Icons.description, const TermsPage()),
-          const SizedBox(height: 10),
+          const SizedBox(height: 25),
           
-          // 🌟 THE HACKER-PROOF LOGOUT BUTTON 🌟
+          _buildMenuItem("My Profile", Icons.person_outline_rounded, const ProfileScreen()),
+          _buildMenuItem("My Wallet", Icons.account_balance_wallet_outlined, const WalletScreen()),
+          _buildMenuItem("My Statistics", Icons.bar_chart_rounded, const StatisticsScreen()),
+          
+          // 🌟 FIXED CLASS NAME HERE AS WELL 🌟
+          _buildMenuItem("Announcements", Icons.campaign_rounded, const NotificationsScreen()), 
+          
+          _buildMenuItem("Contact Us", Icons.support_agent_rounded, const ContactScreen()),
+          _buildMenuItem("FAQ", Icons.help_outline_rounded, const FaqScreen()),
+          _buildMenuItem("Privacy Policy", Icons.privacy_tip_outlined, const PrivacyPolicyPage()),
+          _buildMenuItem("Terms & Conditions", Icons.description_outlined, const TermsPage()),
+          
+          const SizedBox(height: 20),
+          
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFdc2626),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: const Color(0xFFEF4444).withOpacity(0.1),
+                foregroundColor: const Color(0xFFEF4444),
+                elevation: 0,
+                side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text("SECURE LOGOUT", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0)),
               onPressed: () async {
                 try {
                   await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);
-                  
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("✅ Logged out securely from all devices.")),
-                    );
-                    Navigator.pushAndRemoveUntil(
-                      context, 
-                      MaterialPageRoute(builder: (context) => const LoginScreen()), 
-                      (route) => false 
-                    );
+                    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                   }
                 } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("❌ Error during logout: $e")),
-                    );
-                  }
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Error: $e")));
                 }
               },
-              child: const Text("Logout", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
-
-  // Helper Widgets
 
   Widget _buildMatchCard(String title, IconData icon, Color color, Widget destination) {
     return Expanded(
@@ -399,12 +386,16 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 5),
           padding: const EdgeInsets.symmetric(vertical: 15),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color, shape: BoxShape.circle), child: Icon(icon, color: Colors.white, size: 24)),
+              Container(
+                padding: const EdgeInsets.all(10), 
+                decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle), 
+                child: Icon(icon, color: color, size: 24)
+              ),
               const SizedBox(height: 10),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.9), fontSize: 12)),
             ],
           ),
         ),
@@ -417,11 +408,12 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TournamentScreen(mode: title))),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1f2937),
-          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5)],
         ),
         child: ClipRRect(
-           borderRadius: BorderRadius.circular(10),
+           borderRadius: BorderRadius.circular(12),
           child: Column(
             children: [
               Expanded(
@@ -429,19 +421,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   imagePath,
                   fit: BoxFit.cover, 
                   width: double.infinity,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Center(child: Icon(Icons.games, color: Colors.white54, size: 40));
-                  },
+                  errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.gamepad_rounded, color: Colors.white38, size: 30)),
                 ),
               ),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                color: Colors.black.withOpacity(0.7),
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                color: const Color(0xFF0F172A).withOpacity(0.9),
                 child: Text(
                   title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
               ),
             ],
@@ -454,20 +444,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildStatColumn(String value, String label) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFfacc15))),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.amberAccent)),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white54, letterSpacing: 0.5)),
       ],
     );
   }
 
   Widget _buildMenuItem(String title, IconData icon, Widget destination) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(8)),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: Icon(icon, color: Colors.white),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: const Color(0xFF3B82F6).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, color: const Color(0xFF3B82F6), size: 20)
+        ),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+        trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 14),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => destination)),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:battle_master/screens/maintenance_screen.dart';
 import 'package:battle_master/screens/auth_check_screen.dart'; 
 import 'package:battle_master/screens/update_screen.dart';
+import 'package:battle_master/screens/splash_screen.dart'; // 🌟 NAYA: Splash Screen Import
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -57,7 +58,6 @@ Future<void> main() async {
   );
 
   // 🌟 FIX 1: Prevent Multiple Listeners 🌟
-  // Ek variable track karega ki listener pehle se chal raha hai ya nahi
   bool isUserStatusListening = false;
 
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
@@ -93,15 +93,14 @@ Future<void> main() async {
     debugPrint("Error fetching app config: $e");
   }
 
-  // Determine Initial Screen based on priority
-  Widget initialScreen = const AuthCheckScreen();
+  // 🌟 MAGIC SETUP: Determine Target Screen based on priority
+  Widget targetScreen = const AuthCheckScreen();
   if (isUpdateAvailable) {
-    initialScreen = UpdateScreen(appLink: appLink);
+    targetScreen = UpdateScreen(appLink: appLink);
   } else if (isMaintenanceOn) {
-    initialScreen = const MaintenanceScreen();
+    targetScreen = const MaintenanceScreen();
   }
 
-  // 🌟 FIX 2: Track if we were in a blocked state 🌟
   bool wasMaintenanceOrUpdate = isMaintenanceOn || isUpdateAvailable;
 
   // Realtime Database Listener
@@ -137,7 +136,6 @@ Future<void> main() async {
           } 
           // Priority 3: Normal Status (All clear)
           else {
-            // 🌟 MAGIC FIX: Sirf tabhi AuthCheck par bhejo jab pichli screen Maintenance/Update thi
             if (wasMaintenanceOrUpdate) {
               wasMaintenanceOrUpdate = false;
               navigatorKey.currentState?.pushAndRemoveUntil(
@@ -150,7 +148,8 @@ Future<void> main() async {
       )
       .subscribe();
 
-  runApp(MyApp(initialScreen: initialScreen));
+  // 🌟 NAYA: Run App with Splash Screen as initial, passing the target
+  runApp(MyApp(initialScreen: SplashScreen(nextScreen: targetScreen)));
 }
 
 class MyApp extends StatelessWidget {
@@ -167,7 +166,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Roboto',
       ),
       navigatorKey: navigatorKey, 
-      home: initialScreen,
+      home: initialScreen, // Ab ye hamesha SplashScreen kholega pehle
       debugShowCheckedModeBanner: false,
     );
   }
