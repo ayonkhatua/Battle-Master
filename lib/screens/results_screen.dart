@@ -16,7 +16,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Map<String, dynamic>? _tournament;
   List<Map<String, dynamic>> _allResults = [];
   List<Map<String, dynamic>> _winnerResults = [];
-  List<Map<String, dynamic>> _myResults = [];
   
   final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
@@ -51,7 +50,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ignMap[ut['user_id'].toString()] = ut['user_ign']?.toString() ?? 'Unknown';
       }
 
-      // 3. Fetch Game Results (Properly from 'game_results' using 'winnings')
+      // 3. Fetch Game Results
       final rResponse = await Supabase.instance.client
           .from('game_results')
           .select('user_id, kills, winnings, is_winner')
@@ -59,9 +58,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
           .order('winnings', ascending: false)
           .order('kills', ascending: false);
 
-      List<Map<String, dynamic>> allRes = [];
+      List<Map<String, dynamic>> rawResults = [];
       List<Map<String, dynamic>> winnerRes = [];
-      List<Map<String, dynamic>> myRes = [];
 
       int rank = 1;
       for (var r in rResponse as List<dynamic>) {
@@ -71,7 +69,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         rowData['user_id'] = userId;
         rowData['kills'] = r['kills'] ?? 0;
         rowData['winnings'] = r['winnings'] ?? 0;
-        rowData['isWinner'] = r['is_winner'] == true; // Using the boolean from DB
+        rowData['isWinner'] = r['is_winner'] == true; 
         rowData['rank'] = rank;
         
         // Map the IGN
@@ -82,24 +80,44 @@ class _ResultsScreenState extends State<ResultsScreen> {
         bool isMe = _currentUserId != null && userId == _currentUserId;
         rowData['isMe'] = isMe;
 
-        allRes.add(rowData);
+        rawResults.add(rowData);
 
         if (rowData['isWinner']) {
           winnerRes.add(rowData);
-        }
-        if (isMe) {
-          myRes.add(rowData); // Storing user's specific results to show on top
         }
         
         rank++;
       }
 
+      // 🌟 MAGIC LOGIC: Current user ko dhoondo aur sabse upar pin karo
+      List<Map<String, dynamic>> finalResultsList = [];
+      Map<String, dynamic>? myResultData;
+
+      // Pehle apna result nikal lo (agar hai toh)
+      for (var res in rawResults) {
+        if (res['isMe'] == true) {
+          myResultData = res;
+          break; // Mil gaya, loop roko
+        }
+      }
+
+      // Agar mera data mila, toh use naye list ke sabse TOP par daal do
+      if (myResultData != null) {
+        finalResultsList.add(myResultData);
+      }
+
+      // Ab baaki sab ko line se add karo (par mera wala dobara mat add karna)
+      for (var res in rawResults) {
+        if (res['isMe'] == false) {
+          finalResultsList.add(res);
+        }
+      }
+
       if (mounted) {
         setState(() {
           _tournament = tResponse;
-          _allResults = allRes;
+          _allResults = finalResultsList; // 🌟 Updated list (jisme Main sabse upar hoon)
           _winnerResults = winnerRes;
-          _myResults = myRes;
           _isLoading = false;
         });
       }
@@ -113,7 +131,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFFf8fafc), // Light theme bg per screenshot
+        backgroundColor: Color(0xFFf8fafc), 
         body: Center(child: CircularProgressIndicator(color: Color(0xFF312e81))),
       );
     }
@@ -129,9 +147,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
     String formattedDate = DateFormat('dd/MM/yyyy hh:mm a').format(localTime);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFf3f4f6), // Light gray background
+      backgroundColor: const Color(0xFFf3f4f6), 
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1e1b4b), // Dark Purple AppBar
+        backgroundColor: const Color(0xFF1e1b4b), 
         title: const Text("Match Result", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
@@ -145,7 +163,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Image
                   Container(
                     height: 200,
                     width: double.infinity,
@@ -160,14 +177,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title
                         Text(
                           "${_tournament!['mode']} Esports Mode - Match #${_tournament!['id']}",
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1e1b4b)),
                         ),
                         const SizedBox(height: 12),
-                        
-                        // Date Badge
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
@@ -177,8 +191,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           child: Text("Organised on $formattedDate", style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w500)),
                         ),
                         const SizedBox(height: 12),
-                        
-                        // Prize | Kill | Entry Badges
                         Row(
                           children: [
                             _buildInfoBadge("Winning Prize", "${_tournament!['prize_pool']}(₹)"),
@@ -197,7 +209,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
             
             const SizedBox(height: 16),
 
-            // --- WINNERS TABLE ---
+            // --- 1. WINNERS TABLE ---
             if (_winnerResults.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -206,16 +218,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
               const SizedBox(height: 16),
             ],
 
-            // --- MY RESULTS (IF JOINED) ---
-            if (_myResults.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: _buildTableCard("My Match Result", _myResults, highlightAll: true),
-              ),
-              const SizedBox(height: 16),
-            ],
+            // 🌟 FIXED: Removed 'My Match Result' separate table 
 
-            // --- FULL MATCH RESULT TABLE ---
+            // --- 2. FULL MATCH RESULT TABLE ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: _buildTableCard("Match Result", _allResults),
@@ -251,7 +256,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   // The Leaderboard Table UI
-  Widget _buildTableCard(String title, List<Map<String, dynamic>> rowsData, {bool highlightAll = false}) {
+  Widget _buildTableCard(String title, List<Map<String, dynamic>> rowsData) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -298,37 +303,37 @@ class _ResultsScreenState extends State<ResultsScreen> {
               final r = rowsData[index];
               bool isMe = r['isMe'] ?? false;
               
-              // Background color logic: If it's "My Results" table, make it light yellow, else alternate rows.
+              // 🌟 Background color logic: Apna result yellow highlight hoga
               Color bgColor = Colors.white;
-              if (highlightAll || isMe) {
+              if (isMe) {
                 bgColor = const Color(0xFFfef9c3); // Light Yellow highlight for current user
               } else if (index.isOdd) {
                 bgColor = const Color(0xFFf9fafb); // Very light gray for odd rows
               }
 
               return Container(
-                color: bgColor,
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 decoration: BoxDecoration(
+                  color: bgColor, // Sahi jagah par decoration set kiya
                   border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1)),
                 ),
                 child: Row(
                   children: [
-                    Expanded(flex: 1, child: Text("${r['rank']}", style: const TextStyle(color: Colors.black87, fontSize: 14))),
+                    Expanded(flex: 1, child: Text("${r['rank']}", style: TextStyle(color: isMe ? Colors.black : Colors.black87, fontSize: 14, fontWeight: isMe ? FontWeight.w900 : FontWeight.normal))),
                     Expanded(
                       flex: 4, 
                       child: Text(
                         r['ign'], 
                         style: TextStyle(
                           color: isMe ? Colors.black : Colors.black87, 
-                          fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: isMe ? FontWeight.w900 : FontWeight.w500, // 🌟 Khud ka naam zyada bold dikhega
                           fontSize: 14
                         ),
                         overflow: TextOverflow.ellipsis,
                       )
                     ),
-                    Expanded(flex: 2, child: Text("${r['kills']}", textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87, fontSize: 14))),
-                    Expanded(flex: 2, child: Text("${r['winnings']}", textAlign: TextAlign.right, style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 2, child: Text("${r['kills']}", textAlign: TextAlign.center, style: TextStyle(color: isMe ? Colors.black : Colors.black87, fontSize: 14, fontWeight: isMe ? FontWeight.w900 : FontWeight.normal))),
+                    Expanded(flex: 2, child: Text("${r['winnings']}", textAlign: TextAlign.right, style: TextStyle(color: isMe ? Colors.black : Colors.black87, fontSize: 14, fontWeight: FontWeight.bold))),
                   ],
                 ),
               );

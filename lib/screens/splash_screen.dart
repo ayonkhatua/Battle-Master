@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
-// 🌟 Apne actual files ke import yahan daal lena
-//  import 'package:battle_master/screens/login_screen.dart';
-//  import 'package:battle_master/screens/home_screen.dart'; // Ya jo bhi aapke main dashboard ka naam ho
+// 🌟 Dono files import karni padengi kyunki Splash khud decide karega login status
+import 'package:battle_master/screens/login_screen.dart';
+import 'package:battle_master/screens/home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key, required Widget nextScreen});
+  // Ye wo screen hai jo main.dart ne bheji hai (UpdateScreen ya MaintenanceScreen agar zaroorat hui toh)
+  // Agar ye null nahi hai, toh seedha wahi jana hai, warna Home/Login check karna hai.
+  final Widget? nextScreen; 
+
+  const SplashScreen({super.key, this.nextScreen});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -29,35 +33,40 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOutExpo);
     _controller.forward();
 
-    // 🌟 Check Login Status
+    // 🌟 Check Login Status after animation starts
     _checkUserSession();
   }
 
   Future<void> _checkUserSession() async {
-    // Splash screen ko kam se kam 3 second dikhane ke liye delay
+    // Splash screen ko kam se kam 3 second dikhane ke liye delay (Animation dikhne ke liye)
     await Future.delayed(const Duration(seconds: 3));
 
     if (!mounted) return;
 
+    // 1. Agar koi specific override (Update ya Maintenance) aayi hai main.dart se, toh seedha uspar jao
+    if (widget.nextScreen != null && widget.nextScreen.toString() != "AuthCheckScreen") {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => widget.nextScreen!),
+      );
+      return;
+    }
+
+    // 2. Agar koi override nahi hai, toh normal Login Status check karo
     final session = Supabase.instance.client.auth.currentSession;
 
     if (session != null) {
-      // User is logged in -> Go to Main App / Dashboard
-      /* Navigator.pushReplacement(
+      // 🌟 User pehle se login hai -> Home Screen bhej do
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()), 
       );
-      */
-      debugPrint("User logged in. Going to Home...");
     } else {
-      // User is NOT logged in -> Go to Login Screen
-      /*
+      // 🌟 User naya hai ya log out hai -> Login Screen bhej do
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
-      */
-      debugPrint("User not logged in. Going to Login...");
     }
   }
 

@@ -28,6 +28,7 @@ dependencies:
   carousel_slider: ^5.1.2
   shared_preferences: ^2.5.5
   qr_flutter: ^4.1.0
+  share_plus: ^12.0.2
   # 'screens' package is not a standard package, maybe it's a local reference? Removing it for now as it may cause errors.
   # screens: ^2.5.0 
 

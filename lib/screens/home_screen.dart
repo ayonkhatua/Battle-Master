@@ -15,9 +15,10 @@ import 'package:battle_master/pages/faq_page.dart';
 import 'package:battle_master/pages/privacy_policy_page.dart';
 import 'package:battle_master/pages/terms_page.dart';
 import 'package:battle_master/screens/contact_screen.dart';
-
-// 🌟 FIXED BACK TO YOUR ORIGINAL FILENAME 🌟
 import 'package:battle_master/screens/notifications_screen.dart'; 
+
+// 🌟 NAYA IMPORT: Yahan refer_earn_screen ko link kar liya hai
+import 'package:battle_master/screens/refer_earn_screen.dart';
 
 import 'package:battle_master/services/notification_service.dart';
 
@@ -122,51 +123,58 @@ class _HomeScreenState extends State<HomeScreen> {
         final userData = snapshot.data!;
 
         final List<Widget> screens = [
-          _buildEarnTab(),
+          // 🌟 MAGIC YAHAN HAI: Earn Tab ki jagah sidha ReferEarnScreen ko embed kar diya
+          const ReferEarnScreen(), 
           _buildPlayTab(),
           _buildMeTab(userData),
         ];
 
         return Scaffold(
           backgroundColor: const Color(0xFF0B1120), // 🌟 Premium Deep Dark Theme
-          appBar: AppBar(
-            backgroundColor: const Color(0xFF0F172A),
-            elevation: 2,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Welcome back,", style: TextStyle(fontSize: 12, color: Colors.white54)),
-                Text(userData['username'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-              ],
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_active_rounded, color: Color(0xFF3B82F6)), 
-                // 🌟 FIXED NAVIGATION CLASS NAME
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen())), 
-              ),
-              GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const WalletScreen())),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 15, left: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.monetization_on, color: Colors.amberAccent, size: 18),
-                      const SizedBox(width: 6),
-                      Text("${userData['wallet_balance']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                    ],
-                  ),
+          
+          // 🌟 SMART APPBAR: Agar 'Earn' tab (0) khula hai, toh ye wali AppBar hide ho jayegi 
+          // kyunki ReferEarnScreen ke andar uski khudki khoobsurat AppBar hai.
+          appBar: _currentIndex == 0 
+            ? null 
+            : AppBar(
+                backgroundColor: const Color(0xFF0F172A),
+                elevation: 2,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Welcome back,", style: TextStyle(fontSize: 12, color: Colors.white54)),
+                    Text(userData['username'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  ],
                 ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_active_rounded, color: Color(0xFF3B82F6)), 
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen())), 
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const WalletScreen())),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 15, left: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.monetization_on, color: Colors.amberAccent, size: 18),
+                          const SizedBox(width: 6),
+                          Text("${userData['wallet_balance']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+              
           body: screens[_currentIndex],
+          
           bottomNavigationBar: BottomNavigationBar(
             backgroundColor: const Color(0xFF0F172A),
             selectedItemColor: const Color(0xFF3B82F6), 
@@ -175,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
             currentIndex: _currentIndex,
             onTap: (index) => setState(() => _currentIndex = index),
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.attach_money_rounded), label: "Earn"),
+              BottomNavigationBarItem(icon: Icon(Icons.redeem_rounded), label: "Refer & Earn"), // 🌟 Text aur Icon update kar diya
               BottomNavigationBarItem(icon: Icon(Icons.sports_esports_rounded), label: "Play"),
               BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: "Me"),
             ],
@@ -183,10 +191,6 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
-  }
-
-  Widget _buildEarnTab() {
-    return const Center(child: Text("Coming Soon...", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1.5)));
   }
 
   Widget _buildPlayTab() {
@@ -338,7 +342,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildMenuItem("My Wallet", Icons.account_balance_wallet_outlined, const WalletScreen()),
           _buildMenuItem("My Statistics", Icons.bar_chart_rounded, const StatisticsScreen()),
           
-          // 🌟 FIXED CLASS NAME HERE AS WELL 🌟
           _buildMenuItem("Announcements", Icons.campaign_rounded, const NotificationsScreen()), 
           
           _buildMenuItem("Contact Us", Icons.support_agent_rounded, const ContactScreen()),
