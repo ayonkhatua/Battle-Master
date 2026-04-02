@@ -3,113 +3,103 @@ import 'package:flutter/material.dart';
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
 
-  // FAQ ka Data List (Yahan naye questions add karna bohot asaan hai)
+  // FAQ ka Data List (App ka naam 'Battle Master' kar diya hai)
   final List<Map<String, String>> _faqs = const [
     {
-      "question": "Battle Boom app kya hai?",
-      "answer": "Battle Boom ek eSports & gaming platform hai jisme aap matches join karke play kar sakte ho aur coins earn kar sakte ho."
+      "question": "Battle Master app kya hai?",
+      "answer": "Battle Master ek premium eSports & gaming platform hai jahan aap matches join karke khel sakte hain aur real cash/coins earn kar sakte hain."
     },
     {
       "question": "Main apne account me coins kaise add kar sakta hoon?",
-      "answer": "Aap 'My Wallet' section me jaake Add Coins option se coins add kar sakte ho."
+      "answer": "Aap 'My Wallet' section me jaake 'Add Coins' button par click karke UPI ke through asani se coins add kar sakte hain."
     },
     {
-      "question": "Main apne coins ko withdraw kaise karun?",
-      "answer": "Aap 'My Wallet' section me jaake Withdraw Coins option se coins withdraw kar sakte ho."
+      "question": "Main apne jeete hue coins withdraw kaise karun?",
+      "answer": "Aap 'My Wallet' section me jaake 'Withdraw' option chunein. Apna UPI ID ya Number daalein aur request submit karein. Minimum withdrawal 50 coins hai."
     },
     {
-      "question": "Mujhe notification kahan milenge?",
-      "answer": "Aapko saare important updates aur announcements Notifications section me milenge."
+      "question": "Mujhe naye matches ki update kahan milegi?",
+      "answer": "Aapko saare important updates, naye tournaments, aur announcements app ke 'Notifications' ya 'Announcements' section me milenge."
     },
     {
       "question": "Agar main password bhool jaun to kya karun?",
-      "answer": "Aap 'My Profile' section me jaake Reset Password option use karke apna password reset kar sakte ho."
+      "answer": "Aap Login screen par 'Forgot Password' ka option use karke apni registered email id par reset link mangwa sakte hain."
     },
     {
-      "question": "Agar mujhe koi problem aaye to support se kaise contact karun?",
-      "answer": "Aap 'Contact Us' section se hume directly email, Telegram, ya Instagram par contact kar sakte ho."
+      "question": "Agar mujhe app me koi problem aaye to kya karun?",
+      "answer": "Aap 'Contact Us' section me jaake hume directly Email, Telegram, ya Instagram par message kar sakte hain. Humari team jaldi se jaldi aapki madad karegi."
     },
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF111827), // Dark Background
+      backgroundColor: const Color(0xFF0B1120), // 🌟 Premium Dark Theme
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1f2937),
+        backgroundColor: const Color(0xFF0F172A),
         title: const Text(
           "FAQ",
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white, 
+            fontSize: 16, 
+            fontWeight: FontWeight.w900, 
+            letterSpacing: 1.5
+          ),
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 2,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: Colors.white.withOpacity(0.05),
+            height: 1.0,
+          ),
+        ),
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          const Text(
-            "Frequently Asked Questions",
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFfacc15), // Yellow Title
-            ),
-          ),
-          const SizedBox(height: 15),
+      body: ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        itemCount: _faqs.length,
+        itemBuilder: (context, index) {
+          final faq = _faqs[index];
           
-          // Expanded zaroori hai taaki ListView poori bachi hui jagah le sake
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              itemCount: _faqs.length,
-              itemBuilder: (context, index) {
-                final faq = _faqs[index];
-                
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 15),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white, // White Box
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Question
-                      Text(
-                        faq["question"]!,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1f2937), // Dark Gray
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      // Answer
-                      Text(
-                        faq["answer"]!,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.4, // Line height for readability
-                          color: Color(0xFF374151), // Medium Gray
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B).withOpacity(0.8), // Dark Glassmorphic Card
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
             ),
-          ),
-        ],
+            child: Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent), // Hides the inner divider line
+              child: ExpansionTile(
+                iconColor: const Color(0xFF3B82F6), // Blue drop-down arrow
+                collapsedIconColor: Colors.white54,
+                tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                title: Text(
+                  faq["question"]!,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white, // White Question Text
+                  ),
+                ),
+                children: [
+                  Text(
+                    faq["answer"]!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.5, 
+                      color: Colors.white54, // Dim white Answer Text
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

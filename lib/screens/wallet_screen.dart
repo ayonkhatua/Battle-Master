@@ -1,3 +1,4 @@
+import 'dart:async'; // 🌟 NAYA IMPORT: Stream handle karne ke liye
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/screens/add_coin_screen.dart';
@@ -14,30 +15,31 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen> {
   Map<String, int> _walletData = {'total': 0, 'deposited': 0, 'winning': 0, 'bonus': 0};
   bool _isLoading = true;
+  
+  // 🌟 NAYA: Background Stream Subscription
+  StreamSubscription<List<Map<String, dynamic>>>? _walletStreamSubscription;
 
   @override
   void initState() {
     super.initState();
-    _fetchWalletData();
+    _setupRealtimeWallet(); // Init state me realtime chalu kar diya
   }
 
-  // 🌟 Database se fetch karne ka logic (Sahi Column Names ke sath)
-  Future<void> _fetchWalletData() async {
+  // 🌟 MAGIC LOGIC: Ye stream database ko background me dekhti rahegi
+  void _setupRealtimeWallet() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    try {
-      final response = await Supabase.instance.client
-          .from('users')
-          // ⚠️ Dhyan dein: Schema ke hisab se sahi naam use kiye hain
-          .select('wallet_balance, deposited, winning, bonus') 
-          .eq('id', user.id)
-          .single();
-
-      if (mounted) {
+    _walletStreamSubscription = Supabase.instance.client
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .eq('id', user.id)
+        .listen((data) {
+      if (data.isNotEmpty && mounted) {
+        final response = data.first;
         setState(() {
           _walletData = {
             'total': response['wallet_balance'] ?? 0,
@@ -45,25 +47,33 @@ class _WalletScreenState extends State<WalletScreen> {
             'winning': response['winning'] ?? 0,
             'bonus': response['bonus'] ?? 0,
           };
-          _isLoading = false;
+          _isLoading = false; // Data aate hi loading band
         });
       }
-    } catch (e) {
-      debugPrint('Error fetching wallet data: $e');
+    }, onError: (error) {
+      debugPrint('Error fetching wallet stream: $error');
       if (mounted) setState(() => _isLoading = false);
-    }
+    });
   }
 
-  // Kisi bhi page se wapas aane par data refresh karne ke liye
+  @override
+  void dispose() {
+    // 🌟 Memory leak bachane ke liye page close hone par stream band karo
+    _walletStreamSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Pull to refresh ke liye ab bas ek chhota sa delay chahiye, kyunki data toh realtime hai
+  Future<void> _manualRefresh() async {
+    await Future.delayed(const Duration(seconds: 1));
+  }
+
+  // Kisi bhi page se wapas aane par ab loading ki zaroorat nahi, stream auto-update karegi
   void _navigateTo(Widget screen) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => screen),
-    ).then((_) {
-      // Wapas aate hi loading true karke naya data fetch karo
-      setState(() => _isLoading = true);
-      _fetchWalletData();
-    });
+    );
   }
 
   @override
@@ -79,7 +89,7 @@ class _WalletScreenState extends State<WalletScreen> {
       ),
       // Pull to refresh feature
       body: RefreshIndicator(
-        onRefresh: _fetchWalletData,
+        onRefresh: _manualRefresh, // Updated to use the new simple refresh
         color: const Color(0xFF0B1120),
         backgroundColor: const Color(0xFF3B82F6), // Refresh icon background changed to Blue
         child: _isLoading

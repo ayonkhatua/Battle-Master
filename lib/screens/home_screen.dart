@@ -17,9 +17,7 @@ import 'package:battle_master/pages/terms_page.dart';
 import 'package:battle_master/screens/contact_screen.dart';
 import 'package:battle_master/screens/notifications_screen.dart'; 
 
-// 🌟 NAYA IMPORT: Yahan refer_earn_screen ko link kar liya hai
 import 'package:battle_master/screens/refer_earn_screen.dart';
-
 import 'package:battle_master/services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -33,6 +31,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 1; // Default to 'Play' tab
   Future<Map<String, dynamic>>? _userDataFuture;
   Future<List<Map<String, dynamic>>>? _bannersFuture;
+  
+  // 🌟 Realtime wallet ke liye stream
+  Stream<List<Map<String, dynamic>>>? _walletStream;
 
   @override
   void initState() {
@@ -42,6 +43,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _userDataFuture = _fetchUserData();
     _bannersFuture = _fetchBanners();
+
+    // User id nikal kar stream chalu karo
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      _walletStream = Supabase.instance.client
+          .from('users')
+          .stream(primaryKey: ['id'])
+          .eq('id', user.id);
+    }
   }
 
   Future<List<Map<String, dynamic>>> _fetchBanners() async {
@@ -101,8 +111,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     } catch (e) {
        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error fetching data. Please log in again.")));
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error fetching data. Please log in again.")));
+         Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
       }
       return Future.error(e);
     }
@@ -123,17 +133,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final userData = snapshot.data!;
 
         final List<Widget> screens = [
-          // 🌟 MAGIC YAHAN HAI: Earn Tab ki jagah sidha ReferEarnScreen ko embed kar diya
           const ReferEarnScreen(), 
           _buildPlayTab(),
           _buildMeTab(userData),
         ];
 
         return Scaffold(
-          backgroundColor: const Color(0xFF0B1120), // 🌟 Premium Deep Dark Theme
+          backgroundColor: const Color(0xFF0B1120), 
           
-          // 🌟 SMART APPBAR: Agar 'Earn' tab (0) khula hai, toh ye wali AppBar hide ho jayegi 
-          // kyunki ReferEarnScreen ke andar uski khudki khoobsurat AppBar hai.
           appBar: _currentIndex == 0 
             ? null 
             : AppBar(
@@ -151,25 +158,39 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: const Icon(Icons.notifications_active_rounded, color: Color(0xFF3B82F6)), 
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen())), 
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const WalletScreen())),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 15, left: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.monetization_on, color: Colors.amberAccent, size: 18),
-                          const SizedBox(width: 6),
-                          Text("${userData['wallet_balance']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                        ],
-                      ),
+                  
+                  if (_walletStream != null)
+                    StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: _walletStream,
+                      builder: (context, streamSnapshot) {
+                        
+                        int currentBalance = userData['wallet_balance'] ?? 0;
+                        
+                        if (streamSnapshot.hasData && streamSnapshot.data!.isNotEmpty) {
+                          currentBalance = streamSnapshot.data!.first['wallet_balance'] ?? currentBalance;
+                        }
+
+                        return GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const WalletScreen())),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 15, left: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E293B),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.monetization_on, color: Colors.amberAccent, size: 18),
+                                const SizedBox(width: 6),
+                                Text("$currentBalance", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
                 ],
               ),
               
@@ -183,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
             currentIndex: _currentIndex,
             onTap: (index) => setState(() => _currentIndex = index),
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.redeem_rounded), label: "Refer & Earn"), // 🌟 Text aur Icon update kar diya
+              BottomNavigationBarItem(icon: Icon(Icons.redeem_rounded), label: "Refer & Earn"),
               BottomNavigationBarItem(icon: Icon(Icons.sports_esports_rounded), label: "Play"),
               BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: "Me"),
             ],
@@ -195,7 +216,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPlayTab() {
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      // 🌟 FIX: BouncingScrollPhysics ko hatakar ClampingScrollPhysics laga diya
+      // Ab page upar ki taraf rubber-band ki tarah nahi khinchega!
+      physics: const ClampingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -207,12 +230,12 @@ class _HomeScreenState extends State<HomeScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
                   padding: EdgeInsets.only(bottom: 20),
-                  child: SizedBox(height: 160, child: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))),
+                  child: SizedBox(height: 210, child: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))),
                 );
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return Container(
-                  height: 160,
+                  height: 210,
                   width: double.infinity,
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
@@ -227,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.only(bottom: 20),
                 child: CarouselSlider(
                   options: CarouselOptions(
-                    height: 160.0,
+                    height: 210.0,
                     autoPlay: true,
                     enlargeCenterPage: true,
                     viewportFraction: 1.0, 
@@ -304,7 +327,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMeTab(Map<String, dynamic> userData) {
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      // 🌟 FIX: Yahan bhi ClampingScrollPhysics laga diya
+      physics: const ClampingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
@@ -314,10 +338,10 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.5), width: 2),
             ),
-            child: CircleAvatar(
+            child: const CircleAvatar(
               radius: 45, 
-              backgroundColor: const Color(0xFF1E293B),
-              child: Text(userData['username'].toString().toUpperCase()[0], style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+              backgroundColor: Color(0xFF1E293B),
+              backgroundImage: AssetImage('assets/images/logo.png'), 
             ),
           ),
           const SizedBox(height: 12),

@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 class PrivacyPolicyPage extends StatelessWidget {
   const PrivacyPolicyPage({super.key});
 
-  // Policy ka Data List (Tumhara actual PHP wala text)
+  // Policy ka Data List (App ka naam 'Battle Master' kar diya hai)
   final List<Map<String, String>> _policies = const [
     {
       "title": "1. Data Collection",
-      "text": "Battle Boom sirf wahi data collect karta hai jo aap account create karte waqt dete ho, jaise username, email address, aur phone number."
+      "text": "Battle Master sirf wahi data collect karta hai jo aap account create karte waqt dete ho, jaise username, email address, aur phone number."
     },
     {
       "title": "2. Data Usage",
@@ -34,82 +34,73 @@ class PrivacyPolicyPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF111827), // Dark Background
+      backgroundColor: const Color(0xFF0B1120), // 🌟 Premium Dark Theme
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1f2937),
+        backgroundColor: const Color(0xFF0F172A),
         title: const Text(
-          "Privacy Policy",
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          "PRIVACY POLICY",
+          style: TextStyle(
+            color: Colors.white, 
+            fontSize: 16, 
+            fontWeight: FontWeight.w900, 
+            letterSpacing: 1.5
+          ),
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 2,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: Colors.white.withOpacity(0.05),
+            height: 1.0,
+          ),
+        ),
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          const Text(
-            "Privacy Policy",
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFfacc15), // Yellow Title
-            ),
-          ),
-          const SizedBox(height: 15),
+      // 🌟 Extra yellow title aur column hata diya. Seedha ListView chalaya hai.
+      body: ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        itemCount: _policies.length,
+        itemBuilder: (context, index) {
+          final policy = _policies[index];
           
-          // Expanded zaroori hai taaki ListView bachi hui jagah le sake
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              itemCount: _policies.length,
-              itemBuilder: (context, index) {
-                final policy = _policies[index];
-                
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 15),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white, // White Box
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Policy Title (e.g., "1. Data Collection")
-                      Text(
-                        policy["title"]!,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1f2937), // Dark Gray
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      // Policy Description
-                      Text(
-                        policy["text"]!,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.5, // Line height for easy reading
-                          color: Color(0xFF374151), // Medium Gray
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+          return Container(
+            margin: const EdgeInsets.only(bottom: 15),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B).withOpacity(0.8), // Dark Glassmorphic Card
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
             ),
-          ),
-        ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Policy Title 
+                Text(
+                  policy["title"]!,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3B82F6), // Light Blue for headings
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // Policy Description
+                Text(
+                  policy["text"]!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.6, // Thoda aur gap padhne me aasani ke liye
+                    color: Colors.white70, // Dim White for description
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

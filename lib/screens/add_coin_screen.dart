@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // 🌟 Naya QR Package
+import 'package:qr_flutter/qr_flutter.dart'; 
 
 class AddCoinScreen extends StatefulWidget {
   const AddCoinScreen({super.key});
@@ -16,7 +16,7 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
   
   bool _isLoading = false;
   bool _isFetchingConfig = true;
-  bool _isQrGenerated = false; // Naya variable flow control ke liye
+  bool _isQrGenerated = false; 
 
   String _upiId = "Loading..."; 
   int _currentAmount = 0;
@@ -42,7 +42,7 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
         });
       }
     } catch (e) {
-      setState(() => _isFetchingConfig = false);
+      if (mounted) setState(() => _isFetchingConfig = false);
     }
   }
 
@@ -50,13 +50,12 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
     if (_upiId == "Loading..." || _upiId == "No UPI Found") return;
     Clipboard.setData(ClipboardData(text: _upiId));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("✅ UPI ID Copied!"), behavior: SnackBarBehavior.floating),
+      const SnackBar(content: Text("✅ UPI ID Copied!"), behavior: SnackBarBehavior.floating, backgroundColor: Colors.green),
     );
   }
 
-  // 🌟 Naya Function: QR Generate Karne Ke Liye
   void _generateQR() {
-    FocusScope.of(context).unfocus(); // Keyboard hide karo
+    FocusScope.of(context).unfocus(); 
     final amountText = _amountController.text.trim();
     
     if (amountText.isEmpty) {
@@ -77,7 +76,7 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
 
     setState(() {
       _currentAmount = amount;
-      _isQrGenerated = true; // Flow aage badhao
+      _isQrGenerated = true; 
     });
   }
 
@@ -85,7 +84,12 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
     final txnId = _txnController.text.trim();
 
     if (txnId.isEmpty) {
-      _showError("⚠️ Please enter the Transaction ID");
+      _showError("⚠️ Please enter the 12-digit UTR/Txn ID");
+      return;
+    }
+
+    if (txnId.length < 8) {
+      _showError("⚠️ Invalid Txn ID. Please check again.");
       return;
     }
 
@@ -97,19 +101,20 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
 
       await Supabase.instance.client.from('transactions').insert({
         'user_id': userId,
-        'amount': _currentAmount, // Jo amount final hua hai
+        'amount': _currentAmount, 
         'type': 'deposit',
         'txn_ref': txnId,
         'status': 'pending',
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Request submitted successfully!"), backgroundColor: Colors.green),
-      );
-
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) Navigator.pop(context);
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Request submitted! Coins will be added soon."), backgroundColor: Colors.green),
+        );
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) Navigator.pop(context);
+        });
+      }
 
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
@@ -125,39 +130,45 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.redAccent));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating));
   }
 
-  // 🌟 UPI string with specific amount logic
   String getUpiString() {
-    // Format: upi://pay?pa=UPI_ID&pn=BattleMaster&am=AMOUNT&cu=INR
     return "upi://pay?pa=$_upiId&pn=BattleMaster&am=$_currentAmount&cu=INR";
+  }
+
+  // 🌟 Quick Amount Button Logic
+  void _setQuickAmount(int amount) {
+    setState(() {
+      _amountController.text = amount.toString();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF111827),
+      backgroundColor: const Color(0xFF0B1120), // Premium Dark Theme
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1f2937),
+        backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
-        title: const Text("Add Coins", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text("ADD COINS", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16, letterSpacing: 1.2)),
+        centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isFetchingConfig 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
         : SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAmountSection(),
                 
-                // 🌟 Agar QR generate ho gaya hai toh baaki ka UI dikhao
                 if (_isQrGenerated) ...[
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 20),
                   _buildPaymentCard(),
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 20),
                   _buildSubmitSection(),
                 ]
               ],
@@ -169,43 +180,82 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
   Widget _buildAmountSection() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B), 
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Step 1: Enter Amount", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 15),
-          _buildTextField(
-            controller: _amountController, 
-            hint: "Enter Amount (e.g. 50)", 
-            icon: Icons.currency_rupee, 
-            isNumber: true,
-            enabled: !_isQrGenerated // Agar QR ban gaya toh amount lock kar do
-          ),
+          const Text("Step 1: Enter Amount", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 15),
           
-          if (!_isQrGenerated) 
+          _buildTextField(
+            controller: _amountController, 
+            hint: "Enter Amount (Min ₹10)", 
+            icon: Icons.currency_rupee, 
+            isNumber: true,
+            enabled: !_isQrGenerated 
+          ),
+          
+          // 🌟 Quick Amount Buttons (Sirf tab dikhenge jab QR generate nahi hua ho)
+          if (!_isQrGenerated) ...[
+            const SizedBox(height: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildQuickAmountChip(50),
+                _buildQuickAmountChip(100),
+                _buildQuickAmountChip(200),
+                _buildQuickAmountChip(500),
+              ],
+            ),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFfacc15),
-                  foregroundColor: Colors.black,
+                  backgroundColor: const Color(0xFF3B82F6),
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 5,
                 ),
                 onPressed: _generateQR,
-                child: const Text("Generate QR Code", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text("PROCEED TO PAY", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
               ),
             ),
+          ],
             
           if (_isQrGenerated)
-            TextButton.icon(
-              onPressed: () => setState(() => _isQrGenerated = false),
-              icon: const Icon(Icons.edit, color: Colors.white54, size: 16),
-              label: const Text("Change Amount", style: TextStyle(color: Colors.white54)),
+            Padding(
+              padding: const EdgeInsets.only(top: 15),
+              child: Center(
+                child: TextButton.icon(
+                  onPressed: () => setState(() => _isQrGenerated = false),
+                  icon: const Icon(Icons.edit, color: Colors.amberAccent, size: 16),
+                  label: const Text("Change Amount", style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+                ),
+              ),
             )
         ],
+      ),
+    );
+  }
+
+  // Quick amount chip widget
+  Widget _buildQuickAmountChip(int amount) {
+    return GestureDetector(
+      onTap: () => _setQuickAmount(amount),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Text("+₹$amount", style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13)),
       ),
     );
   }
@@ -215,21 +265,29 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1f2937),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFfacc15).withOpacity(0.5)),
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.amberAccent.withOpacity(0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(color: Colors.amberAccent.withOpacity(0.1), blurRadius: 20, spreadRadius: 1)
+        ]
       ),
       child: Column(
         children: [
           const Text("Step 2: Scan & Pay", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 5),
-          Text("Pay exactly ₹$_currentAmount", style: const TextStyle(color: Color(0xFFfacc15), fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Pay exactly: ", style: TextStyle(color: Colors.white70, fontSize: 16)),
+              Text("₹$_currentAmount", style: const TextStyle(color: Colors.greenAccent, fontSize: 24, fontWeight: FontWeight.w900)),
+            ],
+          ),
           const SizedBox(height: 20),
           
-          // 🌟 Dynamic QR Code Builder
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
             child: QrImageView(
               data: getUpiString(),
               version: QrVersions.auto,
@@ -237,20 +295,20 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
             ),
           ),
           
-          const SizedBox(height: 20),
-          const Text("Or copy UPI ID", style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 25),
+          const Text("OR PAY VIA UPI ID", style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+          const SizedBox(height: 10),
           GestureDetector(
             onTap: _copyUPI,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white10)),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_upiId, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                  const SizedBox(width: 10),
-                  const Icon(Icons.copy, color: Color(0xFFfacc15), size: 16),
+                  Text(_upiId, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 15),
+                  const Icon(Icons.copy_rounded, color: Colors.blueAccent, size: 18),
                 ],
               ),
             ),
@@ -263,31 +321,60 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
   Widget _buildSubmitSection() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B), 
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Step 3: Submit Details", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text("Step 3: Submit UTR", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 15),
+          
           _buildTextField(
             controller: _txnController, 
-            hint: "Enter 12-digit Ref No. / Txn ID", 
-            icon: Icons.numbers, 
-            isNumber: false
+            hint: "Enter 12-digit UTR / Ref No.", 
+            icon: Icons.tag, 
+            isNumber: true // UTR mostly numbers hota hai
           ),
+          const SizedBox(height: 12),
+          
+          // 🌟 Fake UTR Warning Box
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.redAccent.withOpacity(0.3))
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: const Text(
+                    "Warning: Submitting fake UTR will lead to permanent account BAN.",
+                    style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563eb),
+                backgroundColor: Colors.greenAccent.shade700,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: _isLoading ? null : _submitRequest,
               child: _isLoading 
                 ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text("Submit Deposit Request", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                : const Text("SUBMIT PAYMENT", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.0)),
             ),
           ),
         ],
@@ -300,15 +387,15 @@ class _AddCoinScreenState extends State<AddCoinScreen> {
       controller: controller,
       enabled: enabled,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      style: TextStyle(color: enabled ? Colors.white : Colors.grey),
+      style: TextStyle(color: enabled ? Colors.white : Colors.white54, fontWeight: FontWeight.bold),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: Colors.grey, size: 20),
+        prefixIcon: Icon(icon, color: enabled ? const Color(0xFF3B82F6) : Colors.grey, size: 20),
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+        hintStyle: const TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.normal),
         filled: true,
-        fillColor: enabled ? const Color(0xFF374151) : const Color(0xFF111827),
+        fillColor: const Color(0xFF0F172A),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       ),
     );
   }

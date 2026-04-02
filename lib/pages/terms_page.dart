@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class TermsPage extends StatelessWidget {
   const TermsPage({super.key});
 
-  // Terms ka Data List (Tumhara actual PHP wala text)
+  // Terms ka Data List 
   final List<Map<String, String>> _terms = const [
     {
       "title": "1. Acceptance of Terms",
@@ -34,85 +34,73 @@ class TermsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF111827), // Dark Background
+      backgroundColor: const Color(0xFF0B1120), // 🌟 Premium Dark Theme Background
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1f2937),
+        backgroundColor: const Color(0xFF0F172A),
         title: const Text(
-          "Terms & Conditions",
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          "TERMS & CONDITIONS", // 🌟 Caps lock aur spacing ke sath premium look
+          style: TextStyle(
+            color: Colors.white, 
+            fontSize: 16, 
+            fontWeight: FontWeight.w900, 
+            letterSpacing: 1.5
+          ),
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 2,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        child: Column(
-          children: [
-            // Page Title
-            const Text(
-              "Terms & Conditions",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFfacc15), // Yellow Title
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            
-            // Main Box containing all terms (Tumhara .box CSS)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1f2937), // Dark grey box
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              // Generate column of terms dynamically
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _terms.map((term) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Term Title (e.g., "1. Acceptance of Terms")
-                        Text(
-                          term["title"]!,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFfacc15), // Yellow
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        
-                        // Term Description
-                        Text(
-                          term["text"]!,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.6, // Line height for readability
-                            color: Color(0xFFd1d5db), // Light Grey
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: Colors.white.withOpacity(0.05),
+            height: 1.0,
+          ),
         ),
+      ),
+      // 🌟 Single bade dabe ko hatakar, smooth list view laga diya hai
+      body: ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        itemCount: _terms.length,
+        itemBuilder: (context, index) {
+          final term = _terms[index];
+          
+          return Container(
+            margin: const EdgeInsets.only(bottom: 15),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B).withOpacity(0.8), // Dark Glassmorphic Card
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Term Title 
+                Text(
+                  term["title"]!,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3B82F6), // Light Blue for headings
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // Term Description
+                Text(
+                  term["text"]!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.6, // Thoda aur gap padhne me aasani ke liye
+                    color: Colors.white70, // Dim White for description
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
