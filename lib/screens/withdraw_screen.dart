@@ -13,45 +13,28 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   final TextEditingController _upiController = TextEditingController();
   
   bool _isLoading = false;
-  bool _isFetchingBalance = true;
-  int _winningBalance = 0; // 🌟 Pura balance nahi, sirf winning balance dikhana hai
-  int _totalBalance = 0;   // Calculation ke liye
 
   final supabase = Supabase.instance.client;
+  
+  // 🌟 NAYA: Realtime Stream for User Data
+  Stream<List<Map<String, dynamic>>>? _userStream;
 
   @override
   void initState() {
     super.initState();
-    _fetchCurrentBalance();
-  }
-
-  // 1. Sirf Winning Balance Fetch Karo
-  Future<void> _fetchCurrentBalance() async {
-    try {
-      final userId = supabase.auth.currentUser?.id;
-      if (userId == null) return;
-
-      final userData = await supabase
+    final userId = supabase.auth.currentUser?.id;
+    if (userId != null) {
+      // 🌟 NAYA: Stream setup kiya taaki balance realtime update ho
+      _userStream = supabase
           .from('users')
-          .select('wallet_balance, winning') // 🌟 Sahi columns fetch karo
-          .eq('id', userId)
-          .single();
-
-      if (mounted) {
-        setState(() {
-          _totalBalance = userData['wallet_balance'] ?? 0;
-          _winningBalance = userData['winning'] ?? 0;
-          _isFetchingBalance = false;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error fetching balance: $e");
-      if (mounted) setState(() => _isFetchingBalance = false);
+          .stream(primaryKey: ['id'])
+          .eq('id', userId);
     }
   }
 
   // 2. Withdraw Request Submit Karna (Safe Logic)
-  Future<void> _submitWithdrawRequest() async {
+  // 🌟 NAYA: Current balances ab arguments me le rahe hain (from stream)
+  Future<void> _submitWithdrawRequest(int currentTotal, int currentWinning) async {
     String amountStr = _amountController.text.trim();
     String upiId = _upiController.text.trim();
 
@@ -60,9 +43,14 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
       return;
     }
     
-    int amountToWithdraw = int.parse(amountStr);
+    int? amountToWithdraw = int.tryParse(amountStr);
+    
+    if (amountToWithdraw == null) {
+       _showSnackBar('⚠️ Invalid amount format!', Colors.orange);
+      return;
+    }
 
-    if (amountToWithdraw < 50) { // 🌟 Minimum withdraw limit (e.g., 50 rs)
+    if (amountToWithdraw < 50) { 
       _showSnackBar('⚠️ Minimum withdraw amount is 50 coins!', Colors.orange);
       return;
     }
@@ -73,7 +61,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     }
 
     // 🌟 SAFE CHECK: Sirf Winning balance se check karo
-    if (amountToWithdraw > _winningBalance) {
+    if (amountToWithdraw > currentWinning) {
       _showSnackBar('❌ You don\'t have enough WINNING coins!', Colors.red);
       return;
     }
@@ -84,27 +72,30 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
       final userId = supabase.auth.currentUser?.id;
       if (userId == null) throw Exception("User session expired!");
 
-      // 🌟 MAGIC LOGIC: RPC call ya manual update
-      // Step 1: Request Pending me dalo
+      // Step 1: User ka balance abhi kaat lo (taaki wo double withdraw na mare)
+      // NOTE: Pehle balance update kar rahe hain taaki instant UI update ho aur double spend block ho
+      await supabase.from('users').update({
+        'wallet_balance': currentTotal - amountToWithdraw,
+        'winning': currentWinning - amountToWithdraw,
+      }).eq('id', userId);
+
+      // Step 2: Request Pending me dalo
       await supabase.from('transactions').insert({
         'user_id': userId,
         'amount': amountToWithdraw,
         'type': 'withdraw',
-        'txn_ref': upiId, // UPI ID as reference
+        'txn_ref': upiId, 
         'status': 'pending',
       });
 
-      // Step 2: User ka balance abhi kaat lo (taaki wo double withdraw na mare)
-      // Agar admin reject karega, toh admin panel se paise wapas mil jayenge
-      await supabase.from('users').update({
-        'wallet_balance': _totalBalance - amountToWithdraw,
-        'winning': _winningBalance - amountToWithdraw,
-      }).eq('id', userId);
-
-      _showSnackBar('✅ Withdraw request submitted successfully!', const Color(0xFF10B981));
+      _showSnackBar('✅ Withdraw request submitted! Coins deducted.', const Color(0xFF10B981));
       
+      // Form saaf kar do taaki confuse na ho
+      _amountController.clear();
+      _upiController.clear();
+
       Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) Navigator.pop(context); // Wapas wallet page par bhej do
+        if (mounted) Navigator.pop(context); // Wapas bhej do
       });
 
     } catch (e) {
@@ -116,7 +107,9 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   }
 
   void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+    if(mounted){
+       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: color, behavior: SnackBarBehavior.floating));
+    }
   }
 
   @override
@@ -130,27 +123,48 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildBalanceCard(),
-            const SizedBox(height: 35),
-            const Text(
-              "WITHDRAW DETAILS",
-              style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.5),
-            ),
-            const SizedBox(height: 15),
-            _buildInputForm(),
-          ],
-        ),
-      ),
+      // 🌟 NAYA: Pura page StreamBuilder ke andar hai
+      body: _userStream == null 
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+        : StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _userStream,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
+              }
+
+              if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text("Error loading balance.", style: TextStyle(color: Colors.redAccent)));
+              }
+
+              final userData = snapshot.data!.first;
+              final currentTotal = userData['wallet_balance'] ?? 0;
+              final currentWinning = userData['winning'] ?? 0;
+
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildBalanceCard(currentWinning),
+                    const SizedBox(height: 35),
+                    const Text(
+                      "WITHDRAW DETAILS",
+                      style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.5),
+                    ),
+                    const SizedBox(height: 15),
+                    _buildInputForm(currentTotal, currentWinning),
+                  ],
+                ),
+              );
+            }
+          ),
     );
   }
 
-  // 🌟 Premium Green Balance Card (Withdraw logic ke hisaab se)
-  Widget _buildBalanceCard() {
+  // 🌟 Premium Green Balance Card
+  Widget _buildBalanceCard(int winningBalance) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -175,14 +189,12 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(Icons.emoji_events, color: Color(0xFF10B981), size: 38), // Trophy icon for winning
+              const Icon(Icons.emoji_events, color: Color(0xFF10B981), size: 38), 
               const SizedBox(width: 12),
-              _isFetchingBalance 
-                ? const SizedBox(height: 30, width: 30, child: CircularProgressIndicator(color: Color(0xFF10B981)))
-                : Text(
-                  '$_winningBalance',
-                  style: const TextStyle(color: Colors.white, fontSize: 50, fontWeight: FontWeight.w900, height: 1.1),
-                ),
+              Text(
+                '$winningBalance',
+                style: const TextStyle(color: Colors.white, fontSize: 50, fontWeight: FontWeight.w900, height: 1.1),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -192,8 +204,8 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     );
   }
 
-  // 🌟 Clean Form Inputs
-  Widget _buildInputForm() {
+  // 🌟 Clean Form Inputs (Balances passed dynamically)
+  Widget _buildInputForm(int currentTotal, int currentWinning) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -237,7 +249,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
             width: double.infinity,
             height: 55,
             child: ElevatedButton(
-              onPressed: _isLoading || _isFetchingBalance ? null : _submitWithdrawRequest,
+              onPressed: _isLoading ? null : () => _submitWithdrawRequest(currentTotal, currentWinning),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF10B981), // Green Button
                 foregroundColor: Colors.white,
