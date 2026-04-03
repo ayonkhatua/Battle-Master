@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/services/user_status_service.dart';
+import 'package:battle_master/services/notification_service.dart'; // 🌟 Zaroori: Local Notification Service
 
 // 🌟 FIREBASE IMPORTS 🌟
 import 'package:firebase_core/firebase_core.dart';
@@ -19,6 +20,7 @@ final navigatorKey = GlobalKey<NavigatorState>();
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   debugPrint("Handling a background message: ${message.messageId}");
+  // Firebase usually handles background messages automatically if payload contains 'notification' block.
 }
 
 Future<void> main() async {
@@ -27,10 +29,19 @@ Future<void> main() async {
   // Load environment variables from .env file
   await dotenv.load(fileName: ".env");
 
-  // 🌟 FIREBASE INITIALIZE 🌟
+  // Initialize Supabase first, so NotificationService can use it if needed
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+  );
+
+  // 🌟 FIREBASE & NOTIFICATIONS INITIALIZE 🌟
   try {
     await Firebase.initializeApp();
     debugPrint("✅ Firebase Initialized Successfully");
+
+    // Init local notifications
+    NotificationService.initialize();
 
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
@@ -43,19 +54,23 @@ Future<void> main() async {
 
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+    // 🌟 FIX: Foreground Message Handler
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       debugPrint('Foreground Message Received: ${message.notification?.title}');
+      
+      // Agar notification payload aaya hai, toh usey local popup ki tarah show karo
+      if (message.notification != null) {
+        NotificationService.showLocalNotification(
+          title: message.notification!.title ?? "New Notification",
+          body: message.notification!.body ?? "",
+        );
+      }
     });
 
   } catch (e) {
     debugPrint("❌ Firebase Initialization Error: $e");
   }
 
-  // Initialize Supabase
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-  );
 
   // 🌟 FIX 1: Prevent Multiple Listeners 🌟
   bool isUserStatusListening = false;
@@ -103,7 +118,7 @@ Future<void> main() async {
 
   bool wasMaintenanceOrUpdate = isMaintenanceOn || isUpdateAvailable;
 
-  // Realtime Database Listener
+  // Realtime Database Listener for App Config
   Supabase.instance.client
       .channel('public:app_config')
       .onPostgresChanges(

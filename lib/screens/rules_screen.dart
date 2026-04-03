@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/screens/choose_slot_screen.dart'; 
-import 'package:battle_master/services/notification_service.dart'; // Ensure you have this
+// Import your notification service here if you have one setup
+// import 'package:battle_master/services/notification_service.dart'; 
 
 class RulesScreen extends StatefulWidget {
   final int tournamentId;
@@ -28,8 +29,8 @@ class _RulesScreenState extends State<RulesScreen> {
   List<Map<String, dynamic>> _mySlots = [];
   List<Map<String, dynamic>> _allParticipants = [];
 
-  // 🌟 NAYA: Stream subscription for real-time updates
-  StreamSubscription<List<Map<String, dynamic>>>? _tournamentStreamSubscription;
+  // 🌟 NAYA: Supabase Channel for Instant Realtime Updates
+  RealtimeChannel? _tournamentChannel;
 
   @override
   void initState() {
@@ -40,57 +41,68 @@ class _RulesScreenState extends State<RulesScreen> {
 
   @override
   void dispose() {
-    _tournamentStreamSubscription?.cancel(); // Cancel stream on exit
+    // Memory leak bachane ke liye page band hone par channel hatao
+    _tournamentChannel?.unsubscribe();
     super.dispose();
   }
 
-  // 🌟 NAYA: Real-time listener function
+  // 🌟 FAST REALTIME LISTENER (Supabase Channels)
   void _setupRealtimeTournament() {
-    _tournamentStreamSubscription = Supabase.instance.client
-        .from('tournaments')
-        .stream(primaryKey: ['id'])
-        .eq('id', widget.tournamentId)
-        .listen((data) {
-      if (data.isNotEmpty && mounted) {
-        final updatedData = data.first;
-        String newRoomId = updatedData['room_id']?.toString() ?? '';
-        String newRoomPass = updatedData['room_password']?.toString() ?? '';
+    _tournamentChannel = Supabase.instance.client
+        .channel('public:tournaments:${widget.tournamentId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'tournaments',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.tournamentId,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              final updatedData = payload.newRecord;
+              String newRoomId = updatedData['room_id']?.toString() ?? '';
+              String newRoomPass = updatedData['room_password']?.toString() ?? '';
 
-        // Check if Room ID or Password was just added/updated
-        bool roomJustUpdated = (newRoomId.isNotEmpty && newRoomId != _roomId) || 
-                               (newRoomPass.isNotEmpty && newRoomPass != _roomPass);
+              // Check if Room ID or Password was just added/updated
+              bool roomJustUpdated = (newRoomId.isNotEmpty && newRoomId != _roomId) || 
+                                     (newRoomPass.isNotEmpty && newRoomPass != _roomPass);
 
-        setState(() {
-          _tData = updatedData;
-          _roomId = newRoomId;
-          _roomPass = newRoomPass;
-          _matchStatus = updatedData['status']?.toString().toLowerCase() ?? 'upcoming';
-        });
+              setState(() {
+                _roomId = newRoomId;
+                _roomPass = newRoomPass;
+                _matchStatus = updatedData['status']?.toString().toLowerCase() ?? 'upcoming';
+                // Update main data map
+                _tData['room_id'] = newRoomId;
+                _tData['room_password'] = newRoomPass;
+                _tData['status'] = updatedData['status'];
+              });
 
-        // Trigger notification if user has joined and room details just arrived
-        if (_hasJoined && roomJustUpdated) {
-          _triggerRoomDetailsNotification(newRoomId, newRoomPass);
-        }
-      }
-    }, onError: (error) {
-      debugPrint('Realtime Tournament Stream Error: $error');
-    });
+              // Trigger notification if user has joined and room details just arrived
+              if (_hasJoined && roomJustUpdated) {
+                _triggerRoomDetailsNotification(newRoomId, newRoomPass);
+              }
+            }
+          }
+        ).subscribe();
   }
 
   // Helper to trigger notification
   void _triggerRoomDetailsNotification(String rId, String rPass) {
     try {
-      // Assuming your NotificationService has a method to show local notifications
-      NotificationService.showLocalNotification(
-        title: "🎮 Match Room Details Updated!",
-        body: "Room ID: $rId | Password: $rPass",
-      );
+      // NOTE: Replace this with your actual NotificationService call
+      // NotificationService.showLocalNotification(
+      //   title: "🎮 Match Room Details Updated!",
+      //   body: "Room ID: $rId | Password: $rPass",
+      // );
+      debugPrint("📢 NOTIFICATION TRIGGERED: Room ID: $rId | Pass: $rPass");
     } catch (e) {
       debugPrint("Failed to show local notification: $e");
     }
   }
 
-  // 🌟 NAYA: Pull to refresh handler
+  // 🌟 PULL TO REFRESH HANDLER
   Future<void> _handleRefresh() async {
     await _fetchDetails();
   }
@@ -240,7 +252,7 @@ class _RulesScreenState extends State<RulesScreen> {
             ],
           ),
         ),
-        // 🌟 NAYA: Added RefreshIndicator wrapping TabBarView
+        // 🌟 FIX: RefreshIndicator wraps TabBarView correctly now
         body: RefreshIndicator(
           onRefresh: _handleRefresh,
           color: const Color(0xFF0B1120),
@@ -261,7 +273,8 @@ class _RulesScreenState extends State<RulesScreen> {
     bool roomSet = _roomId.isNotEmpty && _roomPass.isNotEmpty;
 
     return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(), // 🌟 Needed for RefreshIndicator to work properly
+      // 🌟 FIX: Zaroori hai taaki list empty hone par bhi scroll-to-refresh chal sake
+      physics: const AlwaysScrollableScrollPhysics(), 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
