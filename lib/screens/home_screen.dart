@@ -82,7 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
           .from('users')
           .select('''
             username,
-            wallet_balance,
+            deposited,
+            winning,
+            bonus,
             user_tournaments ( count ),
             game_results ( kills, winnings )
           ''')
@@ -101,9 +103,14 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
       
+      // 🌟 MAGIC FIX: Exact calculation from actual fields instead of wallet_balance
+      int dep = response['deposited'] ?? 0;
+      int win = response['winning'] ?? 0;
+      int bon = response['bonus'] ?? 0;
+
       return {
         'username': response['username'] ?? 'Battle Master',
-        'wallet_balance': response['wallet_balance'] ?? 0,
+        'wallet_balance': dep + win + bon, // Accurate calculation
         'matches_played': tournaments?.isNotEmpty == true ? tournaments![0]['count'] : 0,
         'total_kills': totalKills,
         'coins_won': coinsWon,
@@ -167,7 +174,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         int currentBalance = userData['wallet_balance'] ?? 0;
                         
                         if (streamSnapshot.hasData && streamSnapshot.data!.isNotEmpty) {
-                          currentBalance = streamSnapshot.data!.first['wallet_balance'] ?? currentBalance;
+                          // 🌟 FIX IN STREAM TOO: Calculate total live when database updates
+                          int liveDep = streamSnapshot.data!.first['deposited'] ?? 0;
+                          int liveWin = streamSnapshot.data!.first['winning'] ?? 0;
+                          int liveBon = streamSnapshot.data!.first['bonus'] ?? 0;
+                          currentBalance = liveDep + liveWin + liveBon;
                         }
 
                         return GestureDetector(
@@ -216,8 +227,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPlayTab() {
     return SingleChildScrollView(
-      // 🌟 FIX: BouncingScrollPhysics ko hatakar ClampingScrollPhysics laga diya
-      // Ab page upar ki taraf rubber-band ki tarah nahi khinchega!
       physics: const ClampingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -327,7 +336,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMeTab(Map<String, dynamic> userData) {
     return SingleChildScrollView(
-      // 🌟 FIX: Yahan bhi ClampingScrollPhysics laga diya
       physics: const ClampingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(

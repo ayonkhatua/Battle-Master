@@ -112,11 +112,18 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
       for (var row in response as List<dynamic>) {
         int slots = row['slots'] ?? 0;
-        String type = (row['type'] ?? '').toString().toLowerCase();
+        
+        // 🌟 MAGIC FIX: .trim() lagaya taaki " duo " jaise spaces ignore ho jayein
+        String type = (row['type'] ?? '').toString().toLowerCase().trim(); 
+        
         int squadSize = 1;
-        if (type == 'duo') squadSize = 2;
-        if (type == 'squad') squadSize = 4;
+        if (type == 'duo') {
+          squadSize = 2;
+        } else if (type == 'squad') {
+          squadSize = 4;
+        }
 
+        // 🌟 Ab calculation ekdum perfect hogi (e.g., 2 slots * 2 players = 4 capacity)
         int totalCapacity = slots * squadSize; 
         int filled = row['filled'] ?? 0;
         

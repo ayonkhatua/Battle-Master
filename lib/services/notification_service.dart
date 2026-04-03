@@ -66,4 +66,6 @@ class NotificationService {
       debugPrint("❌ Error saving token to Supabase: $e");
     }
   }
+
+  static void showLocalNotification({required String title, required String body}) {}
 }

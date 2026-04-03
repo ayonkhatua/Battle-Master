@@ -21,11 +21,10 @@ class _WalletScreenState extends State<WalletScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchWalletData(); // Ek baar manually mangwao
-    _setupRealtimeWallet(); // Phir stream chalu kardo
+    _fetchWalletData(); 
+    _setupRealtimeWallet(); 
   }
 
-  // 🌟 NAYA: Ek function jo forcibly naya data mangwayega (Stream ke alawa)
   Future<void> _fetchWalletData() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
@@ -33,17 +32,21 @@ class _WalletScreenState extends State<WalletScreen> {
     try {
       final response = await Supabase.instance.client
           .from('users')
-          .select('wallet_balance, deposited, winning, bonus')
+          .select('deposited, winning, bonus') // 🌟 wallet_balance par bharosa nahi karenge ab
           .eq('id', user.id)
           .single();
 
       if (mounted) {
         setState(() {
+          int dep = response['deposited'] ?? 0;
+          int win = response['winning'] ?? 0;
+          int bon = response['bonus'] ?? 0;
+          
           _walletData = {
-            'total': response['wallet_balance'] ?? 0,
-            'deposited': response['deposited'] ?? 0,
-            'winning': response['winning'] ?? 0,
-            'bonus': response['bonus'] ?? 0,
+            'total': dep + win + bon, // 🌟 MAGIC FIX: Exact accurate total calculation
+            'deposited': dep,
+            'winning': win,
+            'bonus': bon,
           };
           _isLoading = false;
         });
@@ -53,7 +56,6 @@ class _WalletScreenState extends State<WalletScreen> {
     }
   }
 
-  // Stream Database ki nigrani rakhegi
   void _setupRealtimeWallet() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
@@ -69,11 +71,15 @@ class _WalletScreenState extends State<WalletScreen> {
       if (data.isNotEmpty && mounted) {
         final response = data.first;
         setState(() {
+          int dep = response['deposited'] ?? 0;
+          int win = response['winning'] ?? 0;
+          int bon = response['bonus'] ?? 0;
+
           _walletData = {
-            'total': response['wallet_balance'] ?? 0,
-            'deposited': response['deposited'] ?? 0,
-            'winning': response['winning'] ?? 0,
-            'bonus': response['bonus'] ?? 0,
+            'total': dep + win + bon, // 🌟 MAGIC FIX: Yahan bhi khud calculate hoga
+            'deposited': dep,
+            'winning': win,
+            'bonus': bon,
           };
           _isLoading = false; 
         });
@@ -90,18 +96,15 @@ class _WalletScreenState extends State<WalletScreen> {
     super.dispose();
   }
 
-  // Pull to refresh dabane par forcibly data mangwayenge
   Future<void> _manualRefresh() async {
     await _fetchWalletData(); 
   }
 
-  // 🌟 FIX: Kisi bhi page se wapas aane par turant data update karo
   void _navigateTo(Widget screen) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => screen),
     ).then((_) {
-       // Wapas aate hi turant refresh maaro
        _fetchWalletData();
     });
   }

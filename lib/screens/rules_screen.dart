@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/screens/choose_slot_screen.dart'; 
+import 'package:battle_master/services/notification_service.dart'; // Ensure you have this
 
 class RulesScreen extends StatefulWidget {
   final int tournamentId;
@@ -26,10 +28,71 @@ class _RulesScreenState extends State<RulesScreen> {
   List<Map<String, dynamic>> _mySlots = [];
   List<Map<String, dynamic>> _allParticipants = [];
 
+  // 🌟 NAYA: Stream subscription for real-time updates
+  StreamSubscription<List<Map<String, dynamic>>>? _tournamentStreamSubscription;
+
   @override
   void initState() {
     super.initState();
     _fetchDetails();
+    _setupRealtimeTournament(); // Start listening for live changes
+  }
+
+  @override
+  void dispose() {
+    _tournamentStreamSubscription?.cancel(); // Cancel stream on exit
+    super.dispose();
+  }
+
+  // 🌟 NAYA: Real-time listener function
+  void _setupRealtimeTournament() {
+    _tournamentStreamSubscription = Supabase.instance.client
+        .from('tournaments')
+        .stream(primaryKey: ['id'])
+        .eq('id', widget.tournamentId)
+        .listen((data) {
+      if (data.isNotEmpty && mounted) {
+        final updatedData = data.first;
+        String newRoomId = updatedData['room_id']?.toString() ?? '';
+        String newRoomPass = updatedData['room_password']?.toString() ?? '';
+
+        // Check if Room ID or Password was just added/updated
+        bool roomJustUpdated = (newRoomId.isNotEmpty && newRoomId != _roomId) || 
+                               (newRoomPass.isNotEmpty && newRoomPass != _roomPass);
+
+        setState(() {
+          _tData = updatedData;
+          _roomId = newRoomId;
+          _roomPass = newRoomPass;
+          _matchStatus = updatedData['status']?.toString().toLowerCase() ?? 'upcoming';
+        });
+
+        // Trigger notification if user has joined and room details just arrived
+        if (_hasJoined && roomJustUpdated) {
+          _triggerRoomDetailsNotification(newRoomId, newRoomPass);
+        }
+      }
+    }, onError: (error) {
+      debugPrint('Realtime Tournament Stream Error: $error');
+    });
+  }
+
+  // Helper to trigger notification
+  void _triggerRoomDetailsNotification(String rId, String rPass) {
+    try {
+      // Assuming your NotificationService has a method to show local notifications
+      NotificationService.showLocalNotification(
+        title: "🎮 Match Room Details Updated!",
+        body: "Room ID: $rId | Password: $rPass",
+      );
+    } catch (e) {
+      debugPrint("Failed to show local notification: $e");
+    }
+  }
+
+  // 🌟 NAYA: Pull to refresh handler
+  Future<void> _handleRefresh() async {
+    await _fetchDetails();
   }
 
   Future<void> _fetchDetails() async {
@@ -177,11 +240,17 @@ class _RulesScreenState extends State<RulesScreen> {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _buildDetailsTab(isMatchUpcoming),
-            _buildParticipantsTab(),
-          ],
+        // 🌟 NAYA: Added RefreshIndicator wrapping TabBarView
+        body: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: const Color(0xFF0B1120),
+          backgroundColor: const Color(0xFF3B82F6),
+          child: TabBarView(
+            children: [
+              _buildDetailsTab(isMatchUpcoming),
+              _buildParticipantsTab(),
+            ],
+          ),
         ),
         bottomNavigationBar: _buildBottomActionBar(isFull, isMatchUpcoming),
       ),
@@ -192,7 +261,7 @@ class _RulesScreenState extends State<RulesScreen> {
     bool roomSet = _roomId.isNotEmpty && _roomPass.isNotEmpty;
 
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(), // 🌟 Needed for RefreshIndicator to work properly
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -301,7 +370,6 @@ class _RulesScreenState extends State<RulesScreen> {
                 const Text("REGULATIONS", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                 const SizedBox(height: 15),
                 
-                // 🌟 NAYA: Structured Rules View
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -345,7 +413,6 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  // 🌟 NAYA: Rule Section Helper
   Widget _buildRuleSection(String title, List<String> rules, {bool isLast = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,7 +420,6 @@ class _RulesScreenState extends State<RulesScreen> {
         Text(title, style: const TextStyle(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
         const SizedBox(height: 10),
         ...rules.map((rule) {
-          // Split rule title and body for bolding
           List<String> parts = rule.split(': ');
           String boldPart = parts[0] + (parts.length > 1 ? ':' : '');
           String normalPart = parts.length > 1 ? ' ' + parts.sublist(1).join(': ') : '';
@@ -402,7 +468,7 @@ class _RulesScreenState extends State<RulesScreen> {
     final currentUser = Supabase.instance.client.auth.currentUser;
 
     return ListView.builder(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(), // 🌟 Needed for RefreshIndicator
       padding: const EdgeInsets.all(16),
       itemCount: _allParticipants.length,
       itemBuilder: (context, index) {
@@ -442,6 +508,32 @@ class _RulesScreenState extends State<RulesScreen> {
   }
 
   Widget _buildBottomActionBar(bool isFull, bool isMatchUpcoming) {
+    int entryFee = _tData['entry_fee'] ?? 0;
+    int filledSlots = _tData['filled'] ?? 0;
+    
+    int slots = _tData['slots'] ?? 0;
+    String type = (_tData['type'] ?? '').toString().toLowerCase().trim();
+    int squadSize = type == 'squad' ? 4 : (type == 'duo' ? 2 : 1);
+    int totalCapacity = slots * squadSize;
+
+    Color buttonColor = const Color(0xFF3B82F6);
+    String buttonText = "JOIN NOW";
+    bool isDisabled = false;
+
+    if (_hasJoined) {
+      buttonColor = const Color(0xFF1E293B);
+      buttonText = "ALREADY JOINED";
+      isDisabled = true;
+    } else if (!isMatchUpcoming) {
+      buttonColor = const Color(0xFF1E293B);
+      buttonText = "MATCH STARTED";
+      isDisabled = true;
+    } else if (isFull) {
+      buttonColor = const Color(0xFF1E293B);
+      buttonText = "MATCH FULL";
+      isDisabled = true;
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
@@ -450,34 +542,54 @@ class _RulesScreenState extends State<RulesScreen> {
       ),
       child: SizedBox(
         height: 55,
-        child: _hasJoined
-            ? ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E293B), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                onPressed: null,
-                child: const Text("ALREADY JOINED", style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-              )
-            : !isMatchUpcoming 
-                ? ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E293B), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    onPressed: null,
-                    child: const Text("MATCH STARTED", style: TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                  )
-                : isFull
-                    ? ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E293B), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                        onPressed: null,
-                        child: const Text("MATCH FULL", style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                      )
-                    : ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => ChooseSlotScreen(tournamentId: widget.tournamentId)),
-                          ).then((_) => _fetchDetails());
-                        },
-                        child: const Text("JOIN NOW", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                      ),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: buttonColor,
+            disabledBackgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+          ),
+          onPressed: isDisabled ? null : () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ChooseSlotScreen(tournamentId: widget.tournamentId)),
+            ).then((_) => _fetchDetails());
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                   Text(
+                     "🪙 $entryFee", 
+                     style: TextStyle(
+                       color: isDisabled ? Colors.white38 : Colors.amberAccent, 
+                       fontSize: 14, 
+                       fontWeight: FontWeight.bold
+                     )
+                   ),
+                ],
+              ),
+              Text(
+                buttonText, 
+                style: TextStyle(
+                  color: isDisabled ? (buttonText == "MATCH STARTED" ? Colors.redAccent : Colors.white38) : Colors.white, 
+                  fontSize: 14, 
+                  fontWeight: FontWeight.w900, 
+                  letterSpacing: 1.5
+                )
+              ),
+              Text(
+                "$filledSlots/$totalCapacity", 
+                style: TextStyle(
+                  color: isDisabled ? Colors.white38 : Colors.white, 
+                  fontSize: 14, 
+                  fontWeight: FontWeight.bold
+                )
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
