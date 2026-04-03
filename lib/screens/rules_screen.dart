@@ -20,6 +20,7 @@ class _RulesScreenState extends State<RulesScreen> {
   Map<String, dynamic> _tData = {};
   String _roomId = '';
   String _roomPass = '';
+  String _matchStatus = ''; 
   
   // Slots Data
   List<Map<String, dynamic>> _mySlots = [];
@@ -56,6 +57,7 @@ class _RulesScreenState extends State<RulesScreen> {
           _tData = tResponse;
           _roomId = _tData['room_id']?.toString() ?? '';
           _roomPass = _tData['room_password']?.toString() ?? '';
+          _matchStatus = _tData['status']?.toString().toLowerCase() ?? 'upcoming'; 
           
           _allParticipants = participantsList;
           _mySlots = myJoinedSlots;
@@ -78,28 +80,36 @@ class _RulesScreenState extends State<RulesScreen> {
   }
 
   Future<void> _editIGN(int index, int recordId, String currentIgn) async {
+    if (_matchStatus != 'upcoming') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ Match has already started. You cannot change IGN now!"), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
     TextEditingController ignController = TextEditingController(text: currentIgn);
 
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1f2937),
-        title: const Text("Edit your IGN", style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Edit your IGN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: ignController,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(0xFF374151),
+            fillColor: const Color(0xFF0F172A),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFfacc15)),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6)),
             onPressed: () => Navigator.pop(context, ignController.text.trim()),
-            child: const Text("SAVE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -130,8 +140,8 @@ class _RulesScreenState extends State<RulesScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF111827),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFFfacc15))),
+        backgroundColor: Color(0xFF0B1120),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
       );
     }
 
@@ -144,19 +154,23 @@ class _RulesScreenState extends State<RulesScreen> {
     int totalCapacity = slots * squadSize;
     int filledSlots = _tData['filled'] ?? 0;
     bool isFull = filledSlots >= totalCapacity;
+    bool isMatchUpcoming = _matchStatus == 'upcoming'; 
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: const Color(0xFF111827),
+        backgroundColor: const Color(0xFF0B1120),
         appBar: AppBar(
-          backgroundColor: const Color(0xFF1f2937),
-          title: Text(_tData['title'] ?? "Match Details", style: const TextStyle(color: Colors.white, fontSize: 18)),
+          backgroundColor: const Color(0xFF0F172A),
+          title: Text(_tData['title'] ?? "Match Details", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+          centerTitle: true,
           iconTheme: const IconThemeData(color: Colors.white),
+          elevation: 0,
           bottom: const TabBar(
-            indicatorColor: Color(0xFFfacc15),
-            labelColor: Color(0xFFfacc15),
+            indicatorColor: Color(0xFF3B82F6),
+            labelColor: Color(0xFF3B82F6),
             unselectedLabelColor: Colors.grey,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold),
             tabs: [
               Tab(text: "DETAILS & RULES"),
               Tab(text: "PARTICIPANTS"),
@@ -165,81 +179,82 @@ class _RulesScreenState extends State<RulesScreen> {
         ),
         body: TabBarView(
           children: [
-            _buildDetailsTab(),
+            _buildDetailsTab(isMatchUpcoming),
             _buildParticipantsTab(),
           ],
         ),
-        bottomNavigationBar: _buildBottomActionBar(isFull),
+        bottomNavigationBar: _buildBottomActionBar(isFull, isMatchUpcoming),
       ),
     );
   }
 
-  Widget _buildDetailsTab() {
+  Widget _buildDetailsTab(bool isMatchUpcoming) {
     bool roomSet = _roomId.isNotEmpty && _roomPass.isNotEmpty;
 
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_tData['image_url'] != null)
-            Image.network(_tData['image_url'], width: double.infinity, height: 180, fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(height: 180, color: Colors.grey.shade800, child: const Icon(Icons.image, size: 50, color: Colors.grey)),
+            Image.network(_tData['image_url'], width: double.infinity, height: 200, fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(height: 200, color: const Color(0xFF1E293B), child: const Icon(Icons.image, size: 50, color: Colors.grey)),
             ),
 
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Match Info", style: TextStyle(color: Colors.grey.shade400, fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
+                const Text("MATCH INFO", style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                const SizedBox(height: 15),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: [
                     _buildStylizedDataBlock(Icons.groups, "Team", _tData['type']?.toString().toUpperCase() ?? 'SOLO', Colors.white),
-                    _buildStylizedDataBlock(Icons.monetization_on, "Entry Fee", "🪙 ${_tData['entry_fee'] ?? 0}", const Color(0xFFfacc15)),
+                    _buildStylizedDataBlock(Icons.monetization_on, "Entry Fee", "🪙 ${_tData['entry_fee'] ?? 0}", Colors.amberAccent),
                     _buildStylizedDataBlock(Icons.map, "Map", _tData['map'] ?? 'BERMUDA', Colors.white),
                   ],
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 35),
 
-                Text("Prize Details", style: TextStyle(color: Colors.grey.shade400, fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
+                const Text("PRIZE DETAILS", style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                const SizedBox(height: 15),
                 Row(
                   children: [
-                    _buildStylizedDataBlock(Icons.emoji_events, "Prize Pool", "🪙 ${_tData['prize_pool'] ?? 0}", const Color(0xFFfacc15)),
+                    Expanded(child: _buildStylizedDataBlock(Icons.emoji_events, "Prize Pool", "🪙 ${_tData['prize_pool'] ?? 0}", Colors.amberAccent)),
                     const SizedBox(width: 12),
-                    _buildStylizedDataBlock(Icons.ads_click, "Per Kill", "🪙 ${_tData['per_kill'] ?? 0}", const Color(0xFFfacc15)),
+                    Expanded(child: _buildStylizedDataBlock(Icons.ads_click, "Per Kill", "🪙 ${_tData['per_kill'] ?? 0}", Colors.amberAccent)),
                   ],
                 ),
                 const SizedBox(height: 40),
 
                 if (_hasJoined) ...[
-                  const Divider(color: Color(0xFF374151), thickness: 2),
-                  const SizedBox(height: 15),
+                  const Divider(color: Colors.white10, thickness: 1),
+                  const SizedBox(height: 20),
                   
                   if (roomSet) ...[
-                    const Text("Room Details", style: TextStyle(color: Color(0xFFfacc15), fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
+                    const Text("ROOM DETAILS", style: TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    const SizedBox(height: 15),
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFfacc15), width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 8, offset: const Offset(0, 4))]),
+                      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent.withOpacity(0.5), width: 1.5)),
                       child: Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text("Room ID: $_roomId", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                              IconButton(onPressed: () => _copyToClipboard(_roomId, "Room ID"), icon: const Icon(Icons.copy, color: Colors.green, size: 24), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+                              Text("ID: $_roomId", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              IconButton(onPressed: () => _copyToClipboard(_roomId, "Room ID"), icon: const Icon(Icons.copy, color: Colors.greenAccent, size: 20), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                             ],
                           ),
-                          const Divider(color: Colors.grey, thickness: 1),
+                          const Divider(color: Colors.white10, thickness: 1, height: 24),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text("Password: $_roomPass", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                              IconButton(onPressed: () => _copyToClipboard(_roomPass, "Password"), icon: const Icon(Icons.copy, color: Colors.green, size: 24), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+                              Text("Pass: $_roomPass", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              IconButton(onPressed: () => _copyToClipboard(_roomPass, "Password"), icon: const Icon(Icons.copy, color: Colors.greenAccent, size: 20), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                             ],
                           ),
                         ],
@@ -249,49 +264,76 @@ class _RulesScreenState extends State<RulesScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: const Color(0xFF374151), borderRadius: BorderRadius.circular(10)),
-                      child: const Text("⏳ Room ID and Password will be updated here before the match starts.", style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.4), textAlign: TextAlign.center),
+                      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                      child: const Text("⏳ Room ID and Password will be updated here 5-10 minutes before the match starts.", style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4), textAlign: TextAlign.center),
                     ),
                   ],
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 35),
 
-                  const Text("My Joined Slots", style: TextStyle(color: Color(0xFFfacc15), fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
+                  const Text("MY SLOTS", style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                  const SizedBox(height: 15),
                   Container(
-                    decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 5)]),
+                    decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12)),
                     child: Column(
                       children: _mySlots.asMap().entries.map((entry) {
                         int idx = entry.key;
                         var slot = entry.value;
-                        return ListTile(
-                          leading: CircleAvatar(backgroundColor: const Color(0xFF374151), child: Text(slot['position'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                          title: Text("Slot ${slot['slot_number']}", style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
-                          subtitle: Text(slot['user_ign'], style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          trailing: !roomSet 
-                              ? IconButton(icon: const Icon(Icons.edit, color: Colors.blue, size: 24), onPressed: () => _editIGN(idx, slot['id'], slot['user_ign']))
-                              : const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                        return Container(
+                          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05)))),
+                          child: ListTile(
+                            leading: CircleAvatar(backgroundColor: const Color(0xFF0F172A), child: Text(slot['position'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                            title: Text("Slot ${slot['slot_number']}", style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
+                            subtitle: Text(slot['user_ign'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            trailing: (!roomSet && isMatchUpcoming) 
+                                ? IconButton(icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 20), onPressed: () => _editIGN(idx, slot['id'], slot['user_ign']))
+                                : const Icon(Icons.lock, color: Colors.white38, size: 20),
+                          ),
                         );
                       }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 25),
-                  const Divider(color: Color(0xFF374151), thickness: 2),
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 30),
+                  const Divider(color: Colors.white10, thickness: 1),
+                  const SizedBox(height: 30),
                 ],
 
-                const Text("Rules & Regulations", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
+                const Text("REGULATIONS", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                const SizedBox(height: 15),
+                
+                // 🌟 NAYA: Structured Rules View
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(color: const Color(0xFF1f2937), borderRadius: BorderRadius.circular(10)),
-                  child: const Text(
-                    "• Hacks or third-party apps are strictly prohibited.\n\n"
-                    "• Teaming up in Solo matches will lead to an instant ban.\n\n"
-                    "• Room ID and Password will be provided 10 minutes before the match time.\n\n"
-                    "• Ensure you join the correct slot, otherwise you will be kicked.",
-                    style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.6),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white.withOpacity(0.05))),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildRuleSection("JOINING INSTRUCTIONS", [
+                        "Enter Account Name: Ensure you copy your exact Free Fire MAX in-game name while joining.",
+                        "Match Name Verification: If your registered name does not match your in-game name, you will be kicked from the room.",
+                        "Slot Rules: Ensure you join your assigned slot only. Sitting in someone else's slot will lead to an instant kick.",
+                        "Room Details: The Match Room ID & Password will be shared 5 to 10 minutes before the scheduled match time."
+                      ]),
+                      
+                      _buildRuleSection("ELIGIBILITY RULES", [
+                        "Level Requirement: Only players with Level 40+ IDs are eligible to participate.",
+                        "Map Requirements: Ensure all required maps are downloaded before joining the custom room."
+                      ]),
+                      
+                      _buildRuleSection("MATCH RULES", [
+                        "Anti-Cheat: Any use of hacks, mods, or third-party applications will result in a permanent ban and prize forfeiture.",
+                        "Recording Mandatory: All players MUST screen record their gameplay live from their phone. Replay videos are NOT accepted. Proof may be asked to claim prizes.",
+                        "Teaming: Teaming up in Solo matches is strictly prohibited and will lead to an instant ban.",
+                        "Weapon Rules: Double Vector is STRICTLY prohibited. However, Single Vector is allowed.",
+                        "Punctuality: Match time will not be extended for any player. Please join the room exactly on time."
+                      ]),
+                      
+                      _buildRuleSection("REFUND POLICY", [
+                        "Missed Match: If you join a tournament but fail to enter the room or play for any reason, your entry coins will NOT be refunded.",
+                        "Cancelled Match: If a match is cancelled from our side for any reason, your entry coins will be fully refunded to your wallet."
+                      ], isLast: true),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -303,13 +345,56 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
+  // 🌟 NAYA: Rule Section Helper
+  Widget _buildRuleSection(String title, List<String> rules, {bool isLast = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+        const SizedBox(height: 10),
+        ...rules.map((rule) {
+          // Split rule title and body for bolding
+          List<String> parts = rule.split(': ');
+          String boldPart = parts[0] + (parts.length > 1 ? ':' : '');
+          String normalPart = parts.length > 1 ? ' ' + parts.sublist(1).join(': ') : '';
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("• ", style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.5, fontFamily: 'Roboto'),
+                      children: [
+                        TextSpan(text: boldPart, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        TextSpan(text: normalPart),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        if (!isLast) ...[
+          const SizedBox(height: 5),
+          const Divider(color: Colors.white10, thickness: 1),
+          const SizedBox(height: 15),
+        ]
+      ],
+    );
+  }
+
   Widget _buildParticipantsTab() {
     if (_allParticipants.isEmpty) {
       return const Center(
         child: Text(
           "No participants have joined yet.\nBe the first one!",
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey, fontSize: 16),
+          style: TextStyle(color: Colors.white54, fontSize: 14),
         ),
       );
     }
@@ -317,6 +402,7 @@ class _RulesScreenState extends State<RulesScreen> {
     final currentUser = Supabase.instance.client.auth.currentUser;
 
     return ListView.builder(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       itemCount: _allParticipants.length,
       itemBuilder: (context, index) {
@@ -326,13 +412,13 @@ class _RulesScreenState extends State<RulesScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: isMe ? const Color(0xFF2563eb).withOpacity(0.2) : const Color(0xFF1f2937),
-            borderRadius: BorderRadius.circular(10),
-            border: isMe ? Border.all(color: const Color(0xFF2563eb), width: 1.5) : null,
+            color: isMe ? const Color(0xFF3B82F6).withOpacity(0.15) : const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(12),
+            border: isMe ? Border.all(color: const Color(0xFF3B82F6), width: 1) : Border.all(color: Colors.white.withOpacity(0.05)),
           ),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: isMe ? const Color(0xFF2563eb) : const Color(0xFF374151),
+              backgroundColor: isMe ? const Color(0xFF3B82F6) : const Color(0xFF0F172A),
               child: Text(
                 p['position'].toString(), 
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
@@ -340,52 +426,58 @@ class _RulesScreenState extends State<RulesScreen> {
             ),
             title: Text(
               "Slot ${p['slot_number']}", 
-              style: TextStyle(color: isMe ? Colors.white : Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)
+              style: TextStyle(color: isMe ? Colors.white : Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)
             ),
             subtitle: Text(
               p['user_ign'], 
-              style: TextStyle(color: isMe ? const Color(0xFFfacc15) : Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+              style: TextStyle(color: isMe ? Colors.blueAccent : Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
             ),
             trailing: isMe 
-                ? const Text("(You)", style: TextStyle(color: Color(0xFFfacc15), fontWeight: FontWeight.bold))
-                : const Icon(Icons.person, color: Colors.grey),
+                ? const Text("(You)", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w900))
+                : const Icon(Icons.person, color: Colors.white24, size: 20),
           ),
         );
       },
     );
   }
 
-  Widget _buildBottomActionBar(bool isFull) {
+  Widget _buildBottomActionBar(bool isFull, bool isMatchUpcoming) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
-        color: Color(0xFF1f2937),
-        border: Border(top: BorderSide(color: Color(0xFF374151), width: 1.5)),
+        color: Color(0xFF0F172A),
+        border: Border(top: BorderSide(color: Colors.white10, width: 1)),
       ),
       child: SizedBox(
         height: 55,
         child: _hasJoined
             ? ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF374151), disabledBackgroundColor: const Color(0xFF374151), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E293B), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: null,
-                child: const Text("ALREADY JOINED", style: TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.bold)),
+                child: const Text("ALREADY JOINED", style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
               )
-            : isFull
+            : !isMatchUpcoming 
                 ? ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF374151), disabledBackgroundColor: const Color(0xFF374151), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E293B), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     onPressed: null,
-                    child: const Text("MATCH FULL", style: TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.bold)),
+                    child: const Text("MATCH STARTED", style: TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                   )
-                : ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563eb), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ChooseSlotScreen(tournamentId: widget.tournamentId)),
-                      ).then((_) => _fetchDetails());
-                    },
-                    child: const Text("JOIN NOW", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
+                : isFull
+                    ? ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E293B), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        onPressed: null,
+                        child: const Text("MATCH FULL", style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                      )
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => ChooseSlotScreen(tournamentId: widget.tournamentId)),
+                          ).then((_) => _fetchDetails());
+                        },
+                        child: const Text("JOIN NOW", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                      ),
       ),
     );
   }
@@ -393,20 +485,20 @@ class _RulesScreenState extends State<RulesScreen> {
   Widget _buildStylizedDataBlock(IconData icon, String label, String value, Color accentColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: const Color(0xFF374151), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))]),
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white.withOpacity(0.05))),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon, color: accentColor, size: 24), 
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 3),
-              Text(value, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), 
+              Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)), 
             ],
           ),
         ],

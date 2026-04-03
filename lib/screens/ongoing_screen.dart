@@ -43,7 +43,6 @@ class _OngoingScreenState extends State<OngoingScreen> {
       
       dynamic response;
 
-      // 🌟 STATUS FILTERING
       if (widget.isMyMatches && userId != null) {
         response = await Supabase.instance.client
             .from('tournaments')
@@ -145,8 +144,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
   }
 
   // ==========================================
-  // 🚀 COMPACT ONGOING CARD (NO IMAGE)
-  // Reference UI jaisa ekdum clean box
+  // 🚀 COMPACT ONGOING CARD
   // ==========================================
   Widget _buildCompactCard(Map<String, dynamic> t) {
     DateTime localTime = t['matchTime'].toLocal();
@@ -182,7 +180,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFfca5a5), // Light Red
+                          color: const Color(0xFF8B5CF6), // Purple from reference image
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -195,7 +193,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6ee7b7), // Light Green
+                          color: const Color(0xFF1E1B4B), // Dark Navy from reference image
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -231,7 +229,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
             const Divider(height: 1, color: Color(0xFFe5e7eb)),
 
             // --- MIDDLE STATS ---
-            IntrinsicHeight( // Row ke andar dividers ki height fix karne ke liye
+            IntrinsicHeight( 
               child: Row(
                 children: [
                   // Date & Time
@@ -241,8 +239,8 @@ class _OngoingScreenState extends State<OngoingScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Column(
                         children: [
-                          Text(formattedDate, style: const TextStyle(color: Color(0xFFef4444), fontSize: 13, fontWeight: FontWeight.w600)),
-                          Text(formattedTimeStr, style: const TextStyle(color: Color(0xFF9ca3af), fontSize: 12)),
+                          Text(formattedDate, style: const TextStyle(color: Color(0xFF8B5CF6), fontSize: 13, fontWeight: FontWeight.w600)), // Purple date
+                          Text(formattedTimeStr, style: const TextStyle(color: Color(0xFF8B5CF6), fontSize: 12)),
                         ],
                       ),
                     ),
@@ -257,11 +255,13 @@ class _OngoingScreenState extends State<OngoingScreen> {
                       child: Column(
                         children: [
                           const Text("PRIZE POOL", style: TextStyle(color: Color(0xFF4b5563), fontSize: 11, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text("(🪙)${t['prize_pool'] ?? 0}", style: const TextStyle(color: Color(0xFF1f2937), fontSize: 14, fontWeight: FontWeight.bold)),
-                              const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF4b5563)),
+                              Image.network('https://img.icons8.com/emoji/48/coin-emoji.png', width: 14, height: 14),
+                              const SizedBox(width: 4),
+                              Text("${t['prize_pool'] ?? 0}", style: const TextStyle(color: Color(0xFF1f2937), fontSize: 14, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ],
@@ -277,8 +277,16 @@ class _OngoingScreenState extends State<OngoingScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Column(
                         children: [
-                          const Text("PER KILL", style: TextStyle(color: Color(0xFF3b82f6), fontSize: 11, fontWeight: FontWeight.bold)),
-                          Text("(🪙)${t['per_kill'] ?? 0}", style: const TextStyle(color: Color(0xFF3b82f6), fontSize: 14, fontWeight: FontWeight.bold)),
+                          const Text("PER KILL", style: TextStyle(color: Color(0xFF4b5563), fontSize: 11, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.network('https://img.icons8.com/emoji/48/coin-emoji.png', width: 14, height: 14),
+                              const SizedBox(width: 4),
+                              Text("${t['per_kill'] ?? 0}", style: const TextStyle(color: Color(0xFF1f2937), fontSize: 14, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -289,29 +297,37 @@ class _OngoingScreenState extends State<OngoingScreen> {
             
             const Divider(height: 1, color: Color(0xFFe5e7eb)),
 
-            // --- BOTTOM LIVE STATUS BAR ---
+            // --- 🌟 NAYA: BIG SPECTATE BUTTON ---
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFFf8fafc), // Very light gray bg for bottom bar
-                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "● MATCH IS LIVE", 
-                    style: TextStyle(color: Color(0xFFef4444), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 0.5)
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1e293b),
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Yahan baad mein Youtube link kholne ka code aayega
+                    // Example: launchUrl(Uri.parse(t['youtube_link']));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Opening YouTube Link... (Add URL logic here)'))
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8B5CF6), // Purple color jaisa image me tha
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text("VIEW DETAILS ❯", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                    elevation: 0,
                   ),
-                ],
+                  child: const Text(
+                    "SPECTATE", 
+                    style: TextStyle(
+                      color: Colors.white, 
+                      fontSize: 14, 
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5
+                    )
+                  ),
+                ),
               ),
             ),
           ],

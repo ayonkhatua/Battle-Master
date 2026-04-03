@@ -16,7 +16,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
 
   final supabase = Supabase.instance.client;
   
-  // 🌟 NAYA: Realtime Stream for User Data
+  // 🌟 Realtime Stream for User Data
   Stream<List<Map<String, dynamic>>>? _userStream;
 
   @override
@@ -24,7 +24,6 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     super.initState();
     final userId = supabase.auth.currentUser?.id;
     if (userId != null) {
-      // 🌟 NAYA: Stream setup kiya taaki balance realtime update ho
       _userStream = supabase
           .from('users')
           .stream(primaryKey: ['id'])
@@ -32,8 +31,14 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     }
   }
 
+  // 🌟 Quick Amount Button Logic
+  void _setQuickAmount(int amount) {
+    setState(() {
+      _amountController.text = amount.toString();
+    });
+  }
+
   // 2. Withdraw Request Submit Karna (Safe Logic)
-  // 🌟 NAYA: Current balances ab arguments me le rahe hain (from stream)
   Future<void> _submitWithdrawRequest(int currentTotal, int currentWinning) async {
     String amountStr = _amountController.text.trim();
     String upiId = _upiController.text.trim();
@@ -72,14 +77,18 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
       final userId = supabase.auth.currentUser?.id;
       if (userId == null) throw Exception("User session expired!");
 
-      // Step 1: User ka balance abhi kaat lo (taaki wo double withdraw na mare)
-      // NOTE: Pehle balance update kar rahe hain taaki instant UI update ho aur double spend block ho
-      await supabase.from('users').update({
+      // 🌟 STEP 1: FORCE UPDATE BALANCE FIRST (with .select() to verify)
+      final updateResponse = await supabase.from('users').update({
         'wallet_balance': currentTotal - amountToWithdraw,
         'winning': currentWinning - amountToWithdraw,
-      }).eq('id', userId);
+      }).eq('id', userId).select();
 
-      // Step 2: Request Pending me dalo
+      // Agar response empty hai, iska matlab database ne permission deny kar di
+      if (updateResponse.isEmpty) {
+         throw Exception("Database blocked the transaction. Please check RLS policies.");
+      }
+
+      // 🌟 STEP 2: Request Pending me dalo (History ke liye)
       await supabase.from('transactions').insert({
         'user_id': userId,
         'amount': amountToWithdraw,
@@ -90,17 +99,17 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
 
       _showSnackBar('✅ Withdraw request submitted! Coins deducted.', const Color(0xFF10B981));
       
-      // Form saaf kar do taaki confuse na ho
+      // Form saaf kar do
       _amountController.clear();
       _upiController.clear();
 
-      Future.delayed(const Duration(seconds: 2), () {
+      Future.delayed(const Duration(seconds: 1), () {
         if (mounted) Navigator.pop(context); // Wapas bhej do
       });
 
     } catch (e) {
       debugPrint("Error submitting withdraw: $e");
-      _showSnackBar('❌ Error: Could not submit request. Try again.', Colors.red);
+      _showSnackBar('❌ Error: Failed to deduct balance.', Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -123,7 +132,6 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      // 🌟 NAYA: Pura page StreamBuilder ke andar hai
       body: _userStream == null 
         ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
         : StreamBuilder<List<Map<String, dynamic>>>(
@@ -171,7 +179,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.5), width: 1.5), // Emerald Green
+        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.5), width: 1.5), 
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF10B981).withOpacity(0.15),
@@ -204,7 +212,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     );
   }
 
-  // 🌟 Clean Form Inputs (Balances passed dynamically)
+  // 🌟 Clean Form Inputs with Quick Buttons
   Widget _buildInputForm(int currentTotal, int currentWinning) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -229,7 +237,20 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
               contentPadding: const EdgeInsets.symmetric(vertical: 18),
             ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 12),
+          
+          // 🌟 NAYA: Quick Amount Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildQuickAmountChip(50),
+              _buildQuickAmountChip(100),
+              _buildQuickAmountChip(200),
+              _buildQuickAmountChip(500),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
           TextField(
             controller: _upiController,
             keyboardType: TextInputType.text,
@@ -251,7 +272,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
             child: ElevatedButton(
               onPressed: _isLoading ? null : () => _submitWithdrawRequest(currentTotal, currentWinning),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981), // Green Button
+                backgroundColor: const Color(0xFF10B981), 
                 foregroundColor: Colors.white,
                 elevation: 10,
                 shadowColor: const Color(0xFF10B981).withOpacity(0.5),
@@ -263,6 +284,25 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // 🌟 NAYA: Quick amount chip UI component
+  Widget _buildQuickAmountChip(int amount) {
+    return GestureDetector(
+      onTap: () => _setQuickAmount(amount),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Text(
+          "$amount", 
+          style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 13)
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-import 'dart:async'; // 🌟 NAYA IMPORT: Stream handle karne ke liye
+import 'dart:async'; 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/screens/add_coin_screen.dart';
@@ -16,16 +16,44 @@ class _WalletScreenState extends State<WalletScreen> {
   Map<String, int> _walletData = {'total': 0, 'deposited': 0, 'winning': 0, 'bonus': 0};
   bool _isLoading = true;
   
-  // 🌟 NAYA: Background Stream Subscription
   StreamSubscription<List<Map<String, dynamic>>>? _walletStreamSubscription;
 
   @override
   void initState() {
     super.initState();
-    _setupRealtimeWallet(); // Init state me realtime chalu kar diya
+    _fetchWalletData(); // Ek baar manually mangwao
+    _setupRealtimeWallet(); // Phir stream chalu kardo
   }
 
-  // 🌟 MAGIC LOGIC: Ye stream database ko background me dekhti rahegi
+  // 🌟 NAYA: Ek function jo forcibly naya data mangwayega (Stream ke alawa)
+  Future<void> _fetchWalletData() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('wallet_balance, deposited, winning, bonus')
+          .eq('id', user.id)
+          .single();
+
+      if (mounted) {
+        setState(() {
+          _walletData = {
+            'total': response['wallet_balance'] ?? 0,
+            'deposited': response['deposited'] ?? 0,
+            'winning': response['winning'] ?? 0,
+            'bonus': response['bonus'] ?? 0,
+          };
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching wallet data manually: $e');
+    }
+  }
+
+  // Stream Database ki nigrani rakhegi
   void _setupRealtimeWallet() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
@@ -47,7 +75,7 @@ class _WalletScreenState extends State<WalletScreen> {
             'winning': response['winning'] ?? 0,
             'bonus': response['bonus'] ?? 0,
           };
-          _isLoading = false; // Data aate hi loading band
+          _isLoading = false; 
         });
       }
     }, onError: (error) {
@@ -58,42 +86,43 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   void dispose() {
-    // 🌟 Memory leak bachane ke liye page close hone par stream band karo
     _walletStreamSubscription?.cancel();
     super.dispose();
   }
 
-  // Pull to refresh ke liye ab bas ek chhota sa delay chahiye, kyunki data toh realtime hai
+  // Pull to refresh dabane par forcibly data mangwayenge
   Future<void> _manualRefresh() async {
-    await Future.delayed(const Duration(seconds: 1));
+    await _fetchWalletData(); 
   }
 
-  // Kisi bhi page se wapas aane par ab loading ki zaroorat nahi, stream auto-update karegi
+  // 🌟 FIX: Kisi bhi page se wapas aane par turant data update karo
   void _navigateTo(Widget screen) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => screen),
-    );
+    ).then((_) {
+       // Wapas aate hi turant refresh maaro
+       _fetchWalletData();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1120), // Deep Dark Gaming Background
+      backgroundColor: const Color(0xFF0B1120), 
       appBar: AppBar(
         title: const Text('MY WALLET', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white), // App bar icon changed to white
+        iconTheme: const IconThemeData(color: Colors.white), 
       ),
-      // Pull to refresh feature
       body: RefreshIndicator(
-        onRefresh: _manualRefresh, // Updated to use the new simple refresh
+        onRefresh: _manualRefresh, 
         color: const Color(0xFF0B1120),
-        backgroundColor: const Color(0xFF3B82F6), // Refresh icon background changed to Blue
+        backgroundColor: const Color(0xFF3B82F6), 
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))) // Loading changed to Blue
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))) 
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
@@ -122,7 +151,6 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  // 🌟 Premium Main Balance Card
   Widget _buildMainBalanceCard() {
     return Container(
       width: double.infinity,
@@ -134,10 +162,10 @@ class _WalletScreenState extends State<WalletScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.5), width: 1.5), // Border changed to Blue
+        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.5), width: 1.5), 
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3B82F6).withOpacity(0.15), // Shadow changed to Blue
+            color: const Color(0xFF3B82F6).withOpacity(0.15), 
             blurRadius: 25,
             spreadRadius: 2,
             offset: const Offset(0, 10),
@@ -165,7 +193,6 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  // 🌟 Breakup Balances (Glassmorphism look)
   Widget _buildSubBalances() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -200,7 +227,6 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  // 🌟 Action Buttons Row (Add, Withdraw, History)
   Widget _buildActionButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -209,8 +235,8 @@ class _WalletScreenState extends State<WalletScreen> {
           child: _actionBox(
             "ADD COINS", 
             Icons.add_circle_outline, 
-            const Color(0xFF3B82F6), // 🌟 CHANGED TO BLUE
-            Colors.white,            // 🌟 CHANGED TO WHITE TEXT
+            const Color(0xFF3B82F6), 
+            Colors.white,            
             () => _navigateTo(const AddCoinScreen())
           ),
         ),
@@ -219,7 +245,7 @@ class _WalletScreenState extends State<WalletScreen> {
           child: _actionBox(
             "WITHDRAW", 
             Icons.account_balance, 
-            const Color(0xFF10B981), // 🌟 CHANGED TO GREEN (To keep it distinct)
+            const Color(0xFF10B981), 
             Colors.white,
             () => _navigateTo(const WithdrawScreen())
           ),
@@ -229,7 +255,7 @@ class _WalletScreenState extends State<WalletScreen> {
           child: _actionBox(
             "HISTORY", 
             Icons.history, 
-            const Color(0xFF1E293B), // Dark Grey
+            const Color(0xFF1E293B), 
             Colors.white,
             () => _navigateTo(const TransactionHistoryScreen())
           ),
@@ -247,7 +273,6 @@ class _WalletScreenState extends State<WalletScreen> {
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            // 🌟 Only add glow if it's Blue or Green
             if (bgColor == const Color(0xFF3B82F6) || bgColor == const Color(0xFF10B981))
               BoxShadow(color: bgColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
           ],

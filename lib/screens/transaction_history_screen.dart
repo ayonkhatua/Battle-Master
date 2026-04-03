@@ -43,7 +43,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           .limit(50); 
 
       // 🌟 MAGIC LOGIC: Reverse Calculate Closing Balances
-      // Since transactions are descending, we go backwards from current balance
       List<Map<String, dynamic>> processedList = [];
       int runningBalance = currentBal;
 
@@ -82,7 +81,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     }
   }
 
-  // 🌟 NAYA FIX: Sirf Transaction Title Formatting Ko Perfect Kiya Hai
+  // 🌟 NAYA FIX: Exact strings jo tumne batayi hain
   String _formatTransactionTitle(String type, String ref, String status) {
     type = type.toLowerCase();
     
@@ -95,11 +94,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     if (type == 'winning' || type == 'reward') return 'Match Reward - #$ref$suffix';
     if (type == 'join' || type == 'joined') return 'Match Joined - #$ref$suffix';
     
-    // Deposit admin ka hai ya user ka, use simple rakha hai taaki image se match kare
-    if (type == 'deposit' || type == 'deposited') return 'Money Added to Wallet - #$ref$suffix';
-    if (type == 'admin_add') return 'Add Money to Wallet By Admin - #$ref$suffix'; // Extra case agar type admin_add ho
+    if (type == 'deposit' || type == 'deposited') return 'Add Money to Wallet - #$ref$suffix';
+    if (type == 'admin_add' || type == 'credit') return 'Add Money to Wallet By Admin - #$ref$suffix'; 
     
-    if (type == 'withdraw') return 'Withdraw Money from Wallet - #$ref$suffix';
+    if (type == 'withdraw') return 'Withdraw Money from Win Wallet - #$ref$suffix';
     if (type == 'bonus') return 'Bonus Added - #$ref$suffix';
     
     return '${type.toUpperCase()} - #$ref$suffix';
