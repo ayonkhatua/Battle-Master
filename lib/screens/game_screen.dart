@@ -22,23 +22,20 @@ class _TournamentScreenState extends State<TournamentScreen> {
   List<Map<String, dynamic>> _ongoing = []; 
   List<Map<String, dynamic>> _results = []; 
 
-  // Store user's joined tournament IDs
   Set<int> _myJoinedTournaments = {};
 
-  // User Wallet Balance store karne ke liye
   int _userBalance = 0;
   bool _isBalanceLoading = true;
 
-  // 🌟 NAYA: Realtime Stream ko control karne ke liye
   StreamSubscription<List<Map<String, dynamic>>>? _balanceSubscription;
 
   @override
   void initState() {
     super.initState();
+    _fetchInitialBalance(); // 🌟 FIX: Pehle single fresh fetch karo balance ke liye
     _fetchTournaments();
-    _listenToUserBalance(); // 🌟 NAYA: App khulte hi live connection start
+    _listenToUserBalance(); 
     
-    // Timer ab sirf tournaments ko refresh karega
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) {
         _fetchTournaments(silentRefresh: true);
@@ -49,11 +46,33 @@ class _TournamentScreenState extends State<TournamentScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel(); 
-    _balanceSubscription?.cancel(); // 🌟 Memory leak bachane ke liye stream band karna zaroori hai
+    _balanceSubscription?.cancel(); 
     super.dispose();
   }
 
-  // 🌟 NAYA FUNCTION: Real-time Wallet Balance Listener 🌟
+  // 🌟 NAYA: Initial Fresh Balance Fetch 🌟
+  Future<void> _fetchInitialBalance() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('wallet_balance')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (response != null && mounted) {
+        setState(() {
+          _userBalance = response['wallet_balance'] ?? 0;
+          _isBalanceLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Initial Balance Fetch Error: $e");
+    }
+  }
+
   void _listenToUserBalance() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
@@ -61,7 +80,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
       return;
     }
 
-    // .stream() ka use kiya hai taaki jaise hi DB me coin change ho, yaha UI apne aap update ho jaye
     _balanceSubscription = Supabase.instance.client
         .from('users')
         .stream(primaryKey: ['id'])
@@ -85,7 +103,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
     try {
       if (!silentRefresh) setState(() => _isLoading = true);
 
-      // 1. Fetch user's joined matches first
       if (userId != null) {
         final joinedRes = await Supabase.instance.client
             .from('user_tournaments')
@@ -99,7 +116,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
         _myJoinedTournaments = joinedIds;
       }
 
-      // 2. Fetch all tournaments for the selected mode
       final response = await Supabase.instance.client
           .from('tournaments')
           .select('*')
@@ -115,7 +131,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
       for (var row in response as List<dynamic>) {
         int slots = row['slots'] ?? 0;
-        
         String type = (row['type'] ?? '').toString().toLowerCase().trim(); 
         
         int squadSize = 1;
@@ -127,7 +142,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
         int totalCapacity = slots * squadSize; 
         int filled = row['filled'] ?? 0;
-        
         double progress = totalCapacity > 0 ? (filled / totalCapacity) : 0;
         if (progress > 1.0) progress = 1.0; 
         
@@ -135,6 +149,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
         bool isFull = filled >= totalCapacity; 
 
         DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
+        // 🌟 NAYA: Status check ko strictly classify karo
+        String status = (row['status'] ?? 'upcoming').toString().toLowerCase().trim();
 
         Map<String, dynamic> matchData = {
           ...row,
@@ -146,18 +162,20 @@ class _TournamentScreenState extends State<TournamentScreen> {
           'matchTimeUTC': matchTimeUTC, 
         };
         
-        bool hasResult = row['status'] == 'completed'; 
-
-        if (hasResult) {
+        // 🔥 LOGIC: Pehle status check karo, phir time
+        if (status == 'completed') {
           DateTime endTimeUTC = DateTime.tryParse(row['end_time'].toString())?.toUtc() ?? matchTimeUTC;
           if (endTimeUTC.isAfter(twentyFourHoursAgoUTC)) {
             tempResults.add(matchData);
           }
+        } else if (status == 'ongoing' || status == 'live') {
+          tempOngoing.add(matchData);
         } else {
+          // Status agar 'upcoming' hai, tab time check karo safety ke liye
           if (matchTimeUTC.isAfter(nowUTC)) {
             tempMatches.add(matchData);
           } else {
-            tempOngoing.add(matchData);
+            tempOngoing.add(matchData); // Time nikal gaya toh Ongoing
           }
         }
       }
@@ -243,7 +261,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
                 children: [
                   const Icon(Icons.monetization_on, color: Colors.amber, size: 16),
                   const SizedBox(width: 4),
-                  // Yahan ab stream se direct live balance dikhega
                   Text(
                     _isBalanceLoading ? "..." : _userBalance.toString(), 
                     style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
@@ -312,7 +329,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
         if (isResult) {
           Navigator.push(context, MaterialPageRoute(builder: (_) => ResultsScreen(tournamentId: tId)));
         } else {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: tId)));
+          // Yahan status auto-refresh ke liye handleRefresh add kiya hai
+          Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: tId))).then((_) => _fetchTournaments(silentRefresh: true));
         }
       },
       child: Container(
@@ -326,7 +344,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- TOP IMAGE WITH OVERLAY BADGES ---
             Stack(
               children: [
                 Container(
@@ -357,20 +374,8 @@ class _TournamentScreenState extends State<TournamentScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                   ),
                 ),
-                Positioned(
-                  top: 10, left: 15,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.sports_esports, color: Colors.blue, size: 18),
-                      const SizedBox(width: 4),
-                      Text("BattleMaster", style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.bold, fontSize: 12)),
-                    ],
-                  ),
-                )
               ],
             ),
-
-            // --- INFO SECTION (WHITE BACKGROUND) ---
             Padding(
               padding: const EdgeInsets.all(15),
               child: Column(
@@ -392,71 +397,38 @@ class _TournamentScreenState extends State<TournamentScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
-                  Row(
-                    children: [
-                      const Icon(Icons.sports_martial_arts, color: Colors.black87, size: 18),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          "${item['mode']} Esports Mode - Match #${item['id']}",
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
                   const Divider(height: 30, color: Color(0xFFe5e7eb)),
-
                   IntrinsicHeight(
                     child: Row(
                       children: [
                         Expanded(
                           flex: 2,
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(formattedDate, style: const TextStyle(color: Color(0xFF818cf8), fontSize: 12, fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 2),
                               Text(formattedTime, style: const TextStyle(color: Color(0xFF818cf8), fontSize: 12)),
                             ],
                           ),
                         ),
                         const VerticalDivider(width: 1, color: Color(0xFFe5e7eb)),
-                        
                         Expanded(
                           flex: 3,
                           child: GestureDetector(
                             onTap: () => _showPrizePoolPopup(context, item),
-                            child: Container(
-                              color: Colors.transparent,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text("PRIZE POOL", style: TextStyle(color: Color(0xFF4b5563), fontSize: 11, fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text("${item['prize_pool']}(🪙)", style: const TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold)),
-                                      const SizedBox(width: 2),
-                                      const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.black54),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                            child: Column(
+                              children: [
+                                const Text("PRIZE POOL", style: TextStyle(color: Color(0xFF4b5563), fontSize: 11, fontWeight: FontWeight.bold)),
+                                Text("${item['prize_pool']}(🪙)", style: const TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold)),
+                              ],
                             ),
                           ),
                         ),
                         const VerticalDivider(width: 1, color: Color(0xFFe5e7eb)),
-                        
                         Expanded(
                           flex: 2,
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Text("PER KILL", style: TextStyle(color: Color(0xFF4b5563), fontSize: 11, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 2),
                               Text("${item['per_kill']}(🪙)", style: const TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold)),
                             ],
                           ),
@@ -464,46 +436,23 @@ class _TournamentScreenState extends State<TournamentScreen> {
                       ],
                     ),
                   ),
-                  
                   const SizedBox(height: 15),
-
-                  // --- BOTTOM ACTION SECTION ---
                   if (isResult)
                     Row(
                       children: [
                         Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => ResultsScreen(tournamentId: tId)));
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(color: const Color(0xFF818cf8), borderRadius: BorderRadius.circular(6)), 
-                              child: const Text("WATCH", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                            ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(color: const Color(0xFF818cf8), borderRadius: BorderRadius.circular(6)), 
+                            child: const Text("WATCH", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => ResultsScreen(tournamentId: tId)));
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isJoined ? const Color(0xFF10b981) : const Color(0xFF818cf8), 
-                                borderRadius: BorderRadius.circular(6)
-                              ), 
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.monetization_on, color: Colors.amber, size: 14),
-                                  const SizedBox(width: 4),
-                                  Text(isJoined ? "JOINED" : "${item['entry_fee']} NOT JOINED", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                                ],
-                              ),
-                            ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(color: isJoined ? const Color(0xFF10b981) : const Color(0xFF818cf8), borderRadius: BorderRadius.circular(6)), 
+                            child: Text(isJoined ? "JOINED" : "CLOSED", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -540,29 +489,14 @@ class _TournamentScreenState extends State<TournamentScreen> {
                           flex: 2,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: isJoined 
-                                  ? const Color(0xFF10b981) 
-                                  : (item['isFull'] ? const Color(0xFF111827) : const Color(0xFF818cf8)), 
+                              backgroundColor: isJoined ? const Color(0xFF10b981) : (item['isFull'] ? const Color(0xFF111827) : const Color(0xFF818cf8)), 
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                              elevation: 0,
                             ),
                             onPressed: (item['isFull'] && !isJoined) ? null : () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: tId)));
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => RulesScreen(tournamentId: tId))).then((_) => _fetchTournaments(silentRefresh: true));
                             },
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (!isJoined && !item['isFull'])
-                                  const Icon(Icons.monetization_on, color: Colors.amber, size: 14),
-                                if (!isJoined && !item['isFull'])
-                                  const SizedBox(width: 4),
-                                Text(
-                                  isJoined ? "JOINED" : (item['isFull'] ? "FULL" : "${item['entry_fee']} JOIN"),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ],
-                            ),
+                            child: Text(isJoined ? "JOINED" : (item['isFull'] ? "FULL" : "JOIN"), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
