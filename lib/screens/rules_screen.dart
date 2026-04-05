@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:battle_master/screens/choose_slot_screen.dart'; 
-// Import your notification service here if you have one setup
-// import 'package:battle_master/services/notification_service.dart'; 
 
 class RulesScreen extends StatefulWidget {
   final int tournamentId;
@@ -29,24 +27,21 @@ class _RulesScreenState extends State<RulesScreen> {
   List<Map<String, dynamic>> _mySlots = [];
   List<Map<String, dynamic>> _allParticipants = [];
 
-  // 🌟 NAYA: Supabase Channel for Instant Realtime Updates
   RealtimeChannel? _tournamentChannel;
 
   @override
   void initState() {
     super.initState();
     _fetchDetails();
-    _setupRealtimeTournament(); // Start listening for live changes
+    _setupRealtimeTournament();
   }
 
   @override
   void dispose() {
-    // Memory leak bachane ke liye page band hone par channel hatao
     _tournamentChannel?.unsubscribe();
     super.dispose();
   }
 
-  // 🌟 FAST REALTIME LISTENER (Supabase Channels)
   void _setupRealtimeTournament() {
     _tournamentChannel = Supabase.instance.client
         .channel('public:tournaments:${widget.tournamentId}')
@@ -65,21 +60,19 @@ class _RulesScreenState extends State<RulesScreen> {
               String newRoomId = updatedData['room_id']?.toString() ?? '';
               String newRoomPass = updatedData['room_password']?.toString() ?? '';
 
-              // Check if Room ID or Password was just added/updated
               bool roomJustUpdated = (newRoomId.isNotEmpty && newRoomId != _roomId) || 
                                      (newRoomPass.isNotEmpty && newRoomPass != _roomPass);
 
               setState(() {
                 _roomId = newRoomId;
                 _roomPass = newRoomPass;
+                // 🔥 Realtime status update
                 _matchStatus = updatedData['status']?.toString().toLowerCase() ?? 'upcoming';
-                // Update main data map
                 _tData['room_id'] = newRoomId;
                 _tData['room_password'] = newRoomPass;
                 _tData['status'] = updatedData['status'];
               });
 
-              // Trigger notification if user has joined and room details just arrived
               if (_hasJoined && roomJustUpdated) {
                 _triggerRoomDetailsNotification(newRoomId, newRoomPass);
               }
@@ -88,21 +81,10 @@ class _RulesScreenState extends State<RulesScreen> {
         ).subscribe();
   }
 
-  // Helper to trigger notification
   void _triggerRoomDetailsNotification(String rId, String rPass) {
-    try {
-      // NOTE: Replace this with your actual NotificationService call
-      // NotificationService.showLocalNotification(
-      //   title: "🎮 Match Room Details Updated!",
-      //   body: "Room ID: $rId | Password: $rPass",
-      // );
-      debugPrint("📢 NOTIFICATION TRIGGERED: Room ID: $rId | Pass: $rPass");
-    } catch (e) {
-      debugPrint("Failed to show local notification: $e");
-    }
+    debugPrint("📢 NOTIFICATION TRIGGERED: Room ID: $rId | Pass: $rPass");
   }
 
-  // 🌟 PULL TO REFRESH HANDLER
   Future<void> _handleRefresh() async {
     await _fetchDetails();
   }
@@ -222,9 +204,7 @@ class _RulesScreenState extends State<RulesScreen> {
 
     int slots = _tData['slots'] ?? 0;
     String type = (_tData['type'] ?? '').toString().toLowerCase();
-    int squadSize = 1;
-    if (type == 'duo') squadSize = 2;
-    if (type == 'squad') squadSize = 4;
+    int squadSize = type == 'squad' ? 4 : (type == 'duo' ? 2 : 1);
 
     int totalCapacity = slots * squadSize;
     int filledSlots = _tData['filled'] ?? 0;
@@ -252,7 +232,6 @@ class _RulesScreenState extends State<RulesScreen> {
             ],
           ),
         ),
-        // 🌟 FIX: RefreshIndicator wraps TabBarView correctly now
         body: RefreshIndicator(
           onRefresh: _handleRefresh,
           color: const Color(0xFF0B1120),
@@ -273,7 +252,6 @@ class _RulesScreenState extends State<RulesScreen> {
     bool roomSet = _roomId.isNotEmpty && _roomPass.isNotEmpty;
 
     return SingleChildScrollView(
-      // 🌟 FIX: Zaroori hai taaki list empty hone par bhi scroll-to-refresh chal sake
       physics: const AlwaysScrollableScrollPhysics(), 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,7 +459,7 @@ class _RulesScreenState extends State<RulesScreen> {
     final currentUser = Supabase.instance.client.auth.currentUser;
 
     return ListView.builder(
-      physics: const AlwaysScrollableScrollPhysics(), // 🌟 Needed for RefreshIndicator
+      physics: const AlwaysScrollableScrollPhysics(), 
       padding: const EdgeInsets.all(16),
       itemCount: _allParticipants.length,
       itemBuilder: (context, index) {
@@ -537,11 +515,14 @@ class _RulesScreenState extends State<RulesScreen> {
       buttonColor = const Color(0xFF1E293B);
       buttonText = "ALREADY JOINED";
       isDisabled = true;
-    } else if (!isMatchUpcoming) {
+    } 
+    // 🔥 FIX: Match status ab strictly check hoga
+    else if (_matchStatus != 'upcoming') {
       buttonColor = const Color(0xFF1E293B);
       buttonText = "MATCH STARTED";
       isDisabled = true;
-    } else if (isFull) {
+    } 
+    else if (isFull) {
       buttonColor = const Color(0xFF1E293B);
       buttonText = "MATCH FULL";
       isDisabled = true;
@@ -562,7 +543,8 @@ class _RulesScreenState extends State<RulesScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.symmetric(horizontal: 20),
           ),
-          onPressed: isDisabled ? null : () {
+          // 🛡️ Extra Security: Double check inside onPressed
+          onPressed: (isDisabled || _matchStatus != 'upcoming') ? null : () {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => ChooseSlotScreen(tournamentId: widget.tournamentId)),
