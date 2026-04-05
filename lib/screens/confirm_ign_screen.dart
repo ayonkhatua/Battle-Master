@@ -61,10 +61,10 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception("User not logged in");
 
-      // 🛡️ NAYA: ONGOING CHECK (Final check before payment) 🛡️
+      // 🛡️ SECURITY CHECK 1: Match Status & Filled Count
       final statusRes = await Supabase.instance.client
           .from('tournaments')
-          .select('status, filled')
+          .select('status, filled, slots, type')
           .eq('id', widget.tournamentId)
           .single();
 
@@ -75,7 +75,50 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         return;
       }
 
-      // Wallet balance check
+      int totalCapacity = (statusRes['slots'] ?? 0) * (statusRes['type'].toString().toLowerCase() == 'squad' ? 4 : (statusRes['type'].toString().toLowerCase() == 'duo' ? 2 : 1));
+      int currentFilled = statusRes['filled'] ?? 0;
+
+      if (currentFilled + uniqueSlots.length > totalCapacity) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Sorry! Not enough slots available."), backgroundColor: Colors.red));
+        Navigator.pop(context); // Wapas Choose Slot Screen pe
+        return;
+      }
+
+      // 🛡️ SECURITY CHECK 2: Fastest Finger First (Check Availability)
+      final existingParticipants = await Supabase.instance.client
+          .from('user_tournaments')
+          .select('slot_number, position')
+          .eq('tournament_id', widget.tournamentId);
+
+      bool slotAlreadyTaken = false;
+      String takenSlotInfo = "";
+
+      for (String selectedSlot in uniqueSlots) {
+        var parts = selectedSlot.split('-'); 
+        int targetSlotNo = int.parse(parts[0]);
+        String targetPos = parts.length > 1 ? parts[1] : '1';
+
+        for (var row in existingParticipants as List<dynamic>) {
+          if (row['slot_number'] == targetSlotNo && row['position'] == targetPos) {
+            slotAlreadyTaken = true;
+            takenSlotInfo = "Slot $targetSlotNo (P$targetPos)";
+            break;
+          }
+        }
+        if (slotAlreadyTaken) break;
+      }
+
+      if (slotAlreadyTaken) {
+         setState(() => _isProcessing = false);
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text("⚠️ Sorry! Someone else just booked $takenSlotInfo. Please choose another one."), backgroundColor: Colors.orange)
+         );
+         Navigator.pop(context); // Wapas Choose Slot Screen pe bhej do naya chunne ke liye
+         return; 
+      }
+
+      // 🛡️ SECURITY CHECK 3: Wallet balance check
       final freshUserReq = await Supabase.instance.client.from('users').select('wallet_balance').eq('id', user.id).single();
       int freshWallet = freshUserReq['wallet_balance'] ?? 0;
 
@@ -85,6 +128,10 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         return;
       }
 
+      // ==========================================
+      // ✅ SAB CHECKS PASS! AB PAYMENT KATO AUR BOOK KARO ✅
+      // ==========================================
+      
       // 1. Wallet deduction
       await Supabase.instance.client.from('users').update({'wallet_balance': freshWallet - totalFee}).eq('id', user.id);
 
@@ -110,7 +157,6 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
       });
 
       // 4. Update filled count
-      int currentFilled = statusRes['filled'] ?? 0;
       await Supabase.instance.client.from('tournaments').update({'filled': currentFilled + uniqueSlots.length}).eq('id', widget.tournamentId);
 
       // FCM Subscription
@@ -183,7 +229,16 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isProcessing 
-      ? const Center(child: CircularProgressIndicator(color: Color(0xFFfacc15)))
+      ? const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Color(0xFFfacc15)),
+              SizedBox(height: 20),
+              Text("Processing your entry...", style: TextStyle(color: Colors.white70, fontSize: 16))
+            ],
+          ),
+        )
       : Column(
           children: [
             // 🌟 Scrollable content area
@@ -199,6 +254,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                         color: const Color(0xFF1e293b),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: const Color(0xFF374151)),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
                       ),
                       child: Column(
                         children: [
@@ -206,14 +262,20 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text("Current Balance", style: TextStyle(color: Colors.grey, fontSize: 15)),
-                              Text("🪙 $_userWallet", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              Row(
+                                children: [
+                                  const Icon(Icons.account_balance_wallet, color: Colors.greenAccent, size: 18),
+                                  const SizedBox(width: 5),
+                                  Text("🪙 $_userWallet", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                ],
+                              )
                             ],
                           ),
-                          const Divider(color: Color(0xFF374151), height: 30),
+                          const Divider(color: Color(0xFF374151), height: 30, thickness: 1),
                           _buildSummaryRow("Entry Fee", "🪙 ${widget.entryFee}"),
                           const SizedBox(height: 10),
-                          _buildSummaryRow("Slots", "x ${displayUniqueSlots.length}"),
-                          const Divider(color: Color(0xFF374151), height: 30),
+                          _buildSummaryRow("Slots Selected", "x ${displayUniqueSlots.length}"),
+                          const Divider(color: Color(0xFF374151), height: 30, thickness: 1),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -225,6 +287,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                       ),
                     ),
                     const SizedBox(height: 30),
+
                     const Align(alignment: Alignment.centerLeft, child: Text("Enter In-Game Names (IGN)", style: TextStyle(color: Color(0xFFfacc15), fontSize: 18, fontWeight: FontWeight.bold))),
                     const SizedBox(height: 15),
 
@@ -267,7 +330,22 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                         }).toList(),
                       ),
                     ),
-                    const SizedBox(height: 20),
+
+                    const SizedBox(height: 40),
+
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange)),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                          SizedBox(width: 10),
+                          Expanded(child: Text("Please enter your exact in-game name. Incorrect names will be kicked from the custom room.", style: TextStyle(color: Colors.orange, fontSize: 12))),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
                   ],
                 ),
               ),
@@ -283,7 +361,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF374151), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         onPressed: () => Navigator.pop(context),
-                        child: const Text("CANCEL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: const Text("CANCEL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                       ),
                     ),
                     const SizedBox(width: 15),
@@ -291,7 +369,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563eb), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         onPressed: _userWallet < totalPayable ? null : _handleJoin,
-                        child: Text(_userWallet < totalPayable ? "LOW BALANCE" : "JOIN NOW", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text(_userWallet < totalPayable ? "LOW BALANCE" : "JOIN NOW", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                       ),
                     ),
                   ],

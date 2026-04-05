@@ -59,6 +59,9 @@ class _RulesScreenState extends State<RulesScreen> {
               final updatedData = payload.newRecord;
               String newRoomId = updatedData['room_id']?.toString() ?? '';
               String newRoomPass = updatedData['room_password']?.toString() ?? '';
+              
+              // 🔥 FIX 1: Status ko bhi explicitly extract kiya
+              String newStatus = updatedData['status']?.toString().toLowerCase() ?? 'upcoming';
 
               bool roomJustUpdated = (newRoomId.isNotEmpty && newRoomId != _roomId) || 
                                      (newRoomPass.isNotEmpty && newRoomPass != _roomPass);
@@ -66,11 +69,12 @@ class _RulesScreenState extends State<RulesScreen> {
               setState(() {
                 _roomId = newRoomId;
                 _roomPass = newRoomPass;
-                // 🔥 Realtime status update
-                _matchStatus = updatedData['status']?.toString().toLowerCase() ?? 'upcoming';
+                _matchStatus = newStatus; // 👈 Live status update
+                
                 _tData['room_id'] = newRoomId;
                 _tData['room_password'] = newRoomPass;
-                _tData['status'] = updatedData['status'];
+                _tData['status'] = newStatus;
+                _tData['filled'] = updatedData['filled']; // Update filled live
               });
 
               if (_hasJoined && roomJustUpdated) {
@@ -202,13 +206,6 @@ class _RulesScreenState extends State<RulesScreen> {
       );
     }
 
-    int slots = _tData['slots'] ?? 0;
-    String type = (_tData['type'] ?? '').toString().toLowerCase();
-    int squadSize = type == 'squad' ? 4 : (type == 'duo' ? 2 : 1);
-
-    int totalCapacity = slots * squadSize;
-    int filledSlots = _tData['filled'] ?? 0;
-    bool isFull = filledSlots >= totalCapacity;
     bool isMatchUpcoming = _matchStatus == 'upcoming'; 
 
     return DefaultTabController(
@@ -243,7 +240,8 @@ class _RulesScreenState extends State<RulesScreen> {
             ],
           ),
         ),
-        bottomNavigationBar: _buildBottomActionBar(isFull, isMatchUpcoming),
+        // 🔥 Naya Action Bar Logic Call Kiya Hai
+        bottomNavigationBar: _buildBottomActionBar(),
       ),
     );
   }
@@ -498,7 +496,8 @@ class _RulesScreenState extends State<RulesScreen> {
     );
   }
 
-  Widget _buildBottomActionBar(bool isFull, bool isMatchUpcoming) {
+  // 🔥 NAYA BOTTOM ACTION BAR LOGIC 🔥
+  Widget _buildBottomActionBar() {
     int entryFee = _tData['entry_fee'] ?? 0;
     int filledSlots = _tData['filled'] ?? 0;
     
@@ -507,6 +506,36 @@ class _RulesScreenState extends State<RulesScreen> {
     int squadSize = type == 'squad' ? 4 : (type == 'duo' ? 2 : 1);
     int totalCapacity = slots * squadSize;
 
+    bool isFull = filledSlots >= totalCapacity;
+
+    // Agar Match Ongoing hai, ya Live hai, ya Completed hai -> Show SPECTATE Button
+    if (_matchStatus != 'upcoming') {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          border: Border(top: BorderSide(color: Colors.white10, width: 1)),
+        ),
+        child: SizedBox(
+          height: 55,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6366f1), // Purple color for Spectate
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("📺 Spectating link will be available soon!"))
+              );
+            },
+            icon: const Icon(Icons.visibility, color: Colors.white),
+            label: const Text("SPECTATE MATCH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        ),
+      );
+    }
+
+    // Agar Match Upcoming hai, toh Normal JOIN Button dikhao
     Color buttonColor = const Color(0xFF3B82F6);
     String buttonText = "JOIN NOW";
     bool isDisabled = false;
@@ -515,14 +544,7 @@ class _RulesScreenState extends State<RulesScreen> {
       buttonColor = const Color(0xFF1E293B);
       buttonText = "ALREADY JOINED";
       isDisabled = true;
-    } 
-    // 🔥 FIX: Match status ab strictly check hoga
-    else if (_matchStatus != 'upcoming') {
-      buttonColor = const Color(0xFF1E293B);
-      buttonText = "MATCH STARTED";
-      isDisabled = true;
-    } 
-    else if (isFull) {
+    } else if (isFull) {
       buttonColor = const Color(0xFF1E293B);
       buttonText = "MATCH FULL";
       isDisabled = true;
@@ -543,8 +565,7 @@ class _RulesScreenState extends State<RulesScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.symmetric(horizontal: 20),
           ),
-          // 🛡️ Extra Security: Double check inside onPressed
-          onPressed: (isDisabled || _matchStatus != 'upcoming') ? null : () {
+          onPressed: isDisabled ? null : () {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => ChooseSlotScreen(tournamentId: widget.tournamentId)),
@@ -568,7 +589,7 @@ class _RulesScreenState extends State<RulesScreen> {
               Text(
                 buttonText, 
                 style: TextStyle(
-                  color: isDisabled ? (buttonText == "MATCH STARTED" ? Colors.redAccent : Colors.white38) : Colors.white, 
+                  color: isDisabled ? Colors.white38 : Colors.white, 
                   fontSize: 14, 
                   fontWeight: FontWeight.w900, 
                   letterSpacing: 1.5

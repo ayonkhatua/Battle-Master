@@ -31,7 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final mobile = _mobileController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final referralCode = _referralCodeController.text.trim();
+    final referralCode = _referralCodeController.text.trim().toUpperCase(); 
 
     if (username.isEmpty || mobile.isEmpty || email.isEmpty || password.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all mandatory fields!")));
@@ -43,8 +43,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final supabase = Supabase.instance.client;
 
     try {
-      // 🌟 STEP 1: PRE-CHECK FOR DUPLICATE USERNAME, MOBILE OR EMAIL 🌟
-      // Hum or() query use karke teeno me se koi bhi match check kar rahe hain
+      // 🌟 PRE-CHECK 1: Check if Referral Code is Valid 🌟
+      String? validReferrerId;
+      if (referralCode.isNotEmpty) {
+        final referCheck = await supabase
+            .from('users')
+            .select('id')
+            .eq('fcode', referralCode)
+            .maybeSingle();
+
+        if (referCheck == null) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Invalid Referral Code! Please check again."), backgroundColor: Colors.red));
+          setState(() => _isLoading = false);
+          return;
+        }
+        validReferrerId = referCheck['id'];
+      }
+
+      // 🌟 PRE-CHECK 2: Duplicate Check (Username, Mobile, Email) 🌟
       final existingCheck = await supabase
           .from('users')
           .select('username, mobile, email')
@@ -64,10 +80,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
         
         setState(() => _isLoading = false);
-        return; // Execution yahin rok do, aage nahi badhega
+        return; 
       }
 
-      // 🌟 STEP 2: PROCEED WITH REGISTRATION IF UNIQUE 🌟
+      // 🌟 REGISTRATION PROCEED 🌟
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
@@ -78,24 +94,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
         
         String ownReferCode = "USR${Random().nextInt(90000) + 10000}";
         
+        // 🌟 DATABASE INSERT 🌟
+        // Database triggers automatically 'bonus' aur 'wallet_balance' update kar lenge!
         await supabase.from('users').insert({
           'id': user.id,
           'username': username,
           'mobile': mobile,
           'email': email,
           'fcode': ownReferCode, 
-          'referred_by': referralCode.isNotEmpty ? referralCode : null 
+          'referred_by': referralCode.isNotEmpty ? referralCode : null,
         });
 
+        // Agar refer code successfully lag gaya hai
+        if (validReferrerId != null) {
+           // Tum chaho toh Transaction history me record daal sakte ho UI dikhane ke liye
+           try {
+             await supabase.from('transactions').insert({
+              'user_id': user.id,
+              'amount': 3,
+              'type': 'deposit',
+              'txn_ref': 'REFER_BONUS_SIGNUP',
+              'status': 'success',
+              'created_at': DateTime.now().toUtc().toIso8601String(),
+             });
+           } catch (_) {}
+        }
+
         if (mounted) {
+          String successMsg = "✅ Registration Successful! Please check your email for verification.";
+          if (validReferrerId != null) {
+             successMsg = "✅ Registration Successful! Referral code applied. Check email to verify.";
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Registration Successful! Please check your email for verification."), backgroundColor: Colors.green),
+            SnackBar(content: Text(successMsg), backgroundColor: Colors.green),
           );
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
         }
       }
     } on AuthException catch (e) {
-      // Supabase ka default email exists error handle karna (Agar user table mein na ho but Auth mein ho)
       if (e.message.contains("User already registered") || e.message.contains("already registered")) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email is already registered! Please login."), backgroundColor: Colors.red));
       } else {

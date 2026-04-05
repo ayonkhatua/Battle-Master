@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Clipboard ke liye
+import 'package:flutter/services.dart'; 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -13,7 +13,8 @@ class ReferEarnScreen extends StatefulWidget {
 class _ReferEarnScreenState extends State<ReferEarnScreen> {
   bool _isLoading = true;
   String _referCode = "";
-  final String _appBaseLink = "https://battlemaster.com"; // 🌟 Apna actual website ya download link yahan dalein
+  // 🌟 TUMHARA LANDING PAGE LINK
+  final String _appBaseLink = "https://battlemasterofficial.vercel.app"; 
 
   @override
   void initState() {
@@ -28,13 +29,13 @@ class _ReferEarnScreenState extends State<ReferEarnScreen> {
       try {
         final response = await Supabase.instance.client
             .from('users')
-            .select('fcode')
+            .select('fcode') // fcode column tumhare DB me hoga
             .eq('id', user.id)
             .maybeSingle();
 
         if (response != null && mounted) {
           setState(() {
-            _referCode = response['fcode'] ?? "BATTLE123"; // Fallback agar code na ho
+            _referCode = response['fcode'] ?? "BATTLE123"; 
             _isLoading = false;
           });
         }
@@ -47,6 +48,7 @@ class _ReferEarnScreenState extends State<ReferEarnScreen> {
 
   // 🌟 Code Copy karne ka function
   void _copyToClipboard() {
+    if (_referCode.isEmpty) return;
     Clipboard.setData(ClipboardData(text: _referCode));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -59,9 +61,12 @@ class _ReferEarnScreenState extends State<ReferEarnScreen> {
 
   // 🌟 Link Share karne ka function
   void _shareLink() {
+    if (_referCode.isEmpty) return;
+    
     final String shareText = 
         "🎮 Play Free Fire Tournaments & Earn Real Money on Battle Master!\n\n"
         "🎁 Use my invite link to get 3 COINS Welcome Bonus instantly.\n"
+        // 🌟 LINK MEIN ?ref= JOD DIYA HAI
         "Link: $_appBaseLink/?ref=$_referCode\n\n"
         "Or use my code: $_referCode during signup!";
     
@@ -71,7 +76,7 @@ class _ReferEarnScreenState extends State<ReferEarnScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1120), // Premium Dark Theme
+      backgroundColor: const Color(0xFF0B1120), 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

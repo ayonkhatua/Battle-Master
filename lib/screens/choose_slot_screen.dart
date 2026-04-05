@@ -19,9 +19,9 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
   int _maxSlotsAllowed = 1;
   int _myAlreadyBookedCount = 0;
   
+  // Sirf Booked slots store honge (Locked slots hata diye)
   Map<int, List<String>> _bookedSlots = {};
   final Set<String> _selectedSlots = {};
-  Set<String> _lockedSlots = {}; 
   bool _isProcessing = false;
 
   @override
@@ -29,16 +29,10 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
     super.initState();
     _fetchSlotData();
   }
-  
-  @override
-  void dispose() {
-    _releaseMyLocks();
-    super.dispose();
-  }
 
   Future<void> _fetchSlotData() async {
     try {
-      // 1. Fetch Tournament details (Image url hata diya gaya hai)
+      // 1. Fetch Tournament details
       final tRes = await Supabase.instance.client
           .from('tournaments')
           .select('type, slots, entry_fee') 
@@ -54,7 +48,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
       } else if (_type == 'duo') _maxSlotsAllowed = 2;
       else if (_type == 'squad') _maxSlotsAllowed = 4;
 
-      // 2. Fetch Booked Slots
+      // 2. Fetch "Actually Booked" Slots (Jo payment ke baad reserve ho chuke hain)
       final bookedRes = await Supabase.instance.client
           .from('user_tournaments')
           .select('slot_number, position, user_id')
@@ -79,41 +73,14 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
         tempBooked[slotNo]!.add(pos);
       }
 
-      // 3. Fetch Locked Slots
-      final threeMinsAgo = DateTime.now().toUtc().subtract(const Duration(minutes: 3)).toIso8601String();
-      final locksRes = await Supabase.instance.client
-          .from('slot_locks')
-          .select('slot_key, user_id')
-          .eq('tournament_id', widget.tournamentId)
-          .gte('locked_at', threeMinsAgo);
-
-      Set<String> tempLocked = {};
-      for (var row in locksRes as List<dynamic>) {
-        if (row['user_id'] != myUserId) {
-          tempLocked.add(row['slot_key']); 
-        }
-      }
-
       setState(() {
         _bookedSlots = tempBooked;
-        _lockedSlots = tempLocked;
         _myAlreadyBookedCount = tempMyBooked;
         _isLoading = false;
       });
     } catch (e) {
       print("Error fetching slots: $e");
       setState(() => _isLoading = false);
-    }
-  }
-
-  void _releaseMyLocks() {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId != null) {
-      Supabase.instance.client
-          .from('slot_locks')
-          .delete()
-          .eq('tournament_id', widget.tournamentId)
-          .eq('user_id', userId);
     }
   }
 
@@ -125,69 +92,23 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
       return;
     }
 
+    // Ab yahan koi lock nahi hai, seedha IGN/Payment screen par bhej do
     setState(() => _isProcessing = true);
-    final userId = Supabase.instance.client.auth.currentUser!.id;
-    final threeMinsAgo = DateTime.now().toUtc().subtract(const Duration(minutes: 3)).toIso8601String();
-
-    try {
-      await Supabase.instance.client
-          .from('slot_locks')
-          .delete()
-          .eq('tournament_id', widget.tournamentId)
-          .lt('locked_at', threeMinsAgo);
-
-      final existingLocks = await Supabase.instance.client
-          .from('slot_locks')
-          .select('slot_key, user_id')
-          .eq('tournament_id', widget.tournamentId)
-          .inFilter('slot_key', _selectedSlots.toList());
-
-      bool conflict = false;
-      for (var row in existingLocks) {
-        if (row['user_id'] != userId) {
-          conflict = true; break;
-        }
-      }
-
-      if (conflict) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Slot just taken!"), backgroundColor: Colors.orange));
-        await _fetchSlotData();
-        setState(() => _isProcessing = false);
-        return;
-      }
-
-      await Supabase.instance.client.from('slot_locks').delete()
-          .eq('tournament_id', widget.tournamentId).eq('user_id', userId);
-
-      for (String slot in _selectedSlots) {
-        await Supabase.instance.client.from('slot_locks').insert({
-          'tournament_id': widget.tournamentId,
-          'slot_key': slot,
-          'user_id': userId,
-          'locked_at': DateTime.now().toUtc().toIso8601String(),
-        });
-      }
-
-      setState(() => _isProcessing = false);
     
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ConfirmJoinScreen(
-            tournamentId: widget.tournamentId,
-            selectedSlots: _selectedSlots.toList(),
-            entryFee: _entryFee,
-          ),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ConfirmJoinScreen(
+          tournamentId: widget.tournamentId,
+          selectedSlots: _selectedSlots.toList(),
+          entryFee: _entryFee,
         ),
-      );
+      ),
+    );
 
-      _releaseMyLocks();
-      _fetchSlotData();
-
-    } catch (e) {
-      print("Locking error: $e");
-      setState(() => _isProcessing = false);
-    }
+    // Jab wapas aayega tab refresh karo
+    _fetchSlotData();
+    setState(() => _isProcessing = false);
   }
 
   @override
@@ -212,8 +133,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                     physics: const BouncingScrollPhysics(),
                     child: Column(
                       children: [
-                        // Image section completely removed
-                        const SizedBox(height: 30), // Thoda top spacing de diya taaki accha lage
+                        const SizedBox(height: 30), 
                         const Text("Select Your Slots", style: TextStyle(color: Color(0xFFfacc15), fontSize: 22, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 20),
 
@@ -245,23 +165,19 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                                     ...headers.map((pos) {
                                       bool isBooked = _bookedSlots.containsKey(i) && _bookedSlots[i]!.contains(pos);
                                       String slotKey = "$i-$pos";
-                                      bool isLocked = _lockedSlots.contains(slotKey);
                                       bool isSelected = _selectedSlots.contains(slotKey);
                                       
-                                      bool disabled = isBooked || isLocked;
-
                                       return Center(
                                         child: Checkbox(
-                                          value: disabled ? true : isSelected,
+                                          value: isBooked ? true : isSelected,
                                           fillColor: WidgetStateProperty.resolveWith((states) {
                                             if (isBooked) return Colors.red;
-                                            if (isLocked) return Colors.orange;
                                             if (states.contains(WidgetState.selected)) return const Color(0xFF2563eb);
                                             return Colors.transparent;
                                           }),
                                           checkColor: Colors.white,
                                           side: const BorderSide(color: Colors.grey),
-                                          onChanged: disabled
+                                          onChanged: isBooked
                                               ? null 
                                               : (bool? val) {
                                                   setState(() {
@@ -307,7 +223,7 @@ class _ChooseSlotScreenState extends State<ChooseSlotScreen> {
                         onPressed: _isProcessing ? null : _goToNext,
                         child: _isProcessing 
                             ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text("JOIN", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                            : const Text("NEXT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                       ),
                     ),
                   ),
