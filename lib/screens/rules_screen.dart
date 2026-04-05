@@ -435,7 +435,7 @@ class _RulesScreenState extends State<RulesScreen> {
         ...rules.map((rule) {
           List<String> parts = rule.split(': ');
           String boldPart = parts[0] + (parts.length > 1 ? ':' : '');
-          String normalPart = parts.length > 1 ? ' ' + parts.sublist(1).join(': ') : '';
+          String normalPart = parts.length > 1 ? ' ${parts.sublist(1).join(': ')}' : '';
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),

@@ -25,20 +25,23 @@ class _TournamentScreenState extends State<TournamentScreen> {
   // Store user's joined tournament IDs
   Set<int> _myJoinedTournaments = {};
 
-  // 🌟 NAYA: User Wallet Balance store karne ke liye
+  // User Wallet Balance store karne ke liye
   int _userBalance = 0;
   bool _isBalanceLoading = true;
+
+  // 🌟 NAYA: Realtime Stream ko control karne ke liye
+  StreamSubscription<List<Map<String, dynamic>>>? _balanceSubscription;
 
   @override
   void initState() {
     super.initState();
     _fetchTournaments();
-    _fetchUserBalance(); // 🌟 NAYA: Balance fetch start karo
+    _listenToUserBalance(); // 🌟 NAYA: App khulte hi live connection start
     
+    // Timer ab sirf tournaments ko refresh karega
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) {
         _fetchTournaments(silentRefresh: true);
-        _fetchUserBalance(); // Har 1 min baad balance bhi check karo
       }
     });
   }
@@ -46,34 +49,34 @@ class _TournamentScreenState extends State<TournamentScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel(); 
+    _balanceSubscription?.cancel(); // 🌟 Memory leak bachane ke liye stream band karna zaroori hai
     super.dispose();
   }
 
-  // 🌟 NAYA FUNCTION: Fetch Actual Wallet Balance 🌟
-  Future<void> _fetchUserBalance() async {
+  // 🌟 NAYA FUNCTION: Real-time Wallet Balance Listener 🌟
+  void _listenToUserBalance() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
       if (mounted) setState(() => _isBalanceLoading = false);
       return;
     }
 
-    try {
-      final response = await Supabase.instance.client
-          .from('users')
-          .select('wallet_balance')
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (response != null && mounted) {
+    // .stream() ka use kiya hai taaki jaise hi DB me coin change ho, yaha UI apne aap update ho jaye
+    _balanceSubscription = Supabase.instance.client
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .eq('id', userId)
+        .listen((List<Map<String, dynamic>> data) {
+      if (mounted && data.isNotEmpty) {
         setState(() {
-          _userBalance = response['wallet_balance'] ?? 0;
+          _userBalance = data.first['wallet_balance'] ?? 0;
           _isBalanceLoading = false;
         });
       }
-    } catch (e) {
-      debugPrint("Error fetching wallet balance: $e");
+    }, onError: (error) {
+      debugPrint("Error listening to wallet balance: $error");
       if (mounted) setState(() => _isBalanceLoading = false);
-    }
+    });
   }
 
   Future<void> _fetchTournaments({bool silentRefresh = false}) async {
@@ -113,7 +116,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
       for (var row in response as List<dynamic>) {
         int slots = row['slots'] ?? 0;
         
-        // 🌟 MAGIC FIX: .trim() lagaya taaki " duo " jaise spaces ignore ho jayein
         String type = (row['type'] ?? '').toString().toLowerCase().trim(); 
         
         int squadSize = 1;
@@ -123,7 +125,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
           squadSize = 4;
         }
 
-        // 🌟 Ab calculation ekdum perfect hogi (e.g., 2 slots * 2 players = 4 capacity)
         int totalCapacity = slots * squadSize; 
         int filled = row['filled'] ?? 0;
         
@@ -242,7 +243,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                 children: [
                   const Icon(Icons.monetization_on, color: Colors.amber, size: 16),
                   const SizedBox(width: 4),
-                  // 🌟 FIXED: Ab actual user balance dikhayega (ya Loading agar data fetch ho raha hai)
+                  // Yahan ab stream se direct live balance dikhega
                   Text(
                     _isBalanceLoading ? "..." : _userBalance.toString(), 
                     style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
