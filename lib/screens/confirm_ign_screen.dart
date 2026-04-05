@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// 🌟 ADDED: Firebase Messaging Import 🌟
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 class ConfirmJoinScreen extends StatefulWidget {
@@ -44,7 +43,9 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
   }
 
   Future<void> _handleJoin() async {
-    int totalFee = widget.entryFee * widget.selectedSlots.length;
+    // 🌟 FIX 1: Duplicate slots ko block kiya, agar pichli screen 2 baar bhej rahi thi toh ab 1 hi manega
+    final List<String> uniqueSlots = widget.selectedSlots.toSet().toList();
+    int totalFee = widget.entryFee * uniqueSlots.length;
 
     for (var controller in _ignControllers) {
       if (controller.text.trim().isEmpty) {
@@ -68,16 +69,21 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         return;
       }
 
+      // Wallet deduction
       await Supabase.instance.client.from('users').update({'wallet_balance': freshWallet - totalFee}).eq('id', user.id);
 
-      for (int i = 0; i < widget.selectedSlots.length; i++) {
-        var parts = widget.selectedSlots[i].split('-'); 
+      // 🌟 FIX 2: Filled data ko INSERT karne se PEHLE fetch kiya taaki Database triggers ke sath clash na ho
+      final tRes = await Supabase.instance.client.from('tournaments').select('filled').eq('id', widget.tournamentId).single();
+      int currentFilled = tRes['filled'] ?? 0;
+
+      for (int i = 0; i < uniqueSlots.length; i++) {
+        var parts = uniqueSlots[i].split('-'); 
         await Supabase.instance.client.from('user_tournaments').insert({
           'user_id': user.id,
           'tournament_id': widget.tournamentId,
           'slot_number': int.parse(parts[0]),
           'position': parts.length > 1 ? parts[1] : '1',
-          'user_ign': _ignControllers[i].text.trim(),
+          'user_ign': _ignControllers[i].text.trim(), // uniqueSlots jitne hi controllers use honge
         });
       }
 
@@ -89,28 +95,25 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         'status': 'success',
       });
 
-      final tRes = await Supabase.instance.client.from('tournaments').select('filled').eq('id', widget.tournamentId).single();
-      await Supabase.instance.client.from('tournaments').update({'filled': (tRes['filled'] ?? 0) + widget.selectedSlots.length}).eq('id', widget.tournamentId);
+      // 🌟 FIX 3: Naya filtered update chalaya (+1 hi hoga agar 1 select kiya hai)
+      await Supabase.instance.client.from('tournaments').update({'filled': currentFilled + uniqueSlots.length}).eq('id', widget.tournamentId);
 
-      // 🌟 ADDED: FCM Topic Subscription 🌟
-      // Ye database entries confirm hone ke BAAD trigger hoga
+      // FCM Topic Subscription
       try {
         await FirebaseMessaging.instance.subscribeToTopic('tournament_${widget.tournamentId}');
         print("✅ Successfully subscribed to topic: tournament_${widget.tournamentId}");
       } catch (fcmError) {
         print("⚠️ FCM Subscription Error: $fcmError");
-        // Error aaye bhi toh join fail nahi hona chahiye
       }
 
-      // 🌟 MAGIC LOGIC: Popup ko safely show karna bina error ke 🌟
+      // 🌟 POPUP LOGIC: Tumhari request par isko bilkul waisa hi rakha gaya hai
       if (mounted) {
-        setState(() => _isProcessing = false); // Step 1: Loading band karna
+        setState(() => _isProcessing = false); 
         
-        // Future.delayed taaki UI safely update ho jaye uske baad dialog aaye
         Future.delayed(Duration.zero, () {
           showDialog(
             context: context,
-            barrierDismissible: false, // Dialog can't be closed by clicking outside
+            barrierDismissible: false, 
             builder: (BuildContext dialogContext) {
               return Dialog(
                 backgroundColor: const Color(0xFF1e293b),
@@ -141,7 +144,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                         width: double.infinity,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFfacc15), // Golden button
+                            backgroundColor: const Color(0xFFfacc15),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -172,7 +175,9 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    int totalPayable = widget.entryFee * widget.selectedSlots.length;
+    // 🌟 FIX 4: Yaha UI mein bhi `toSet()` kar diya hai taaki extra balance na kate UI mein
+    final List<String> displayUniqueSlots = widget.selectedSlots.toSet().toList();
+    int totalPayable = widget.entryFee * displayUniqueSlots.length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a), 
@@ -223,7 +228,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                   const Divider(color: Color(0xFF374151), height: 30, thickness: 1),
                   _buildSummaryRow("Entry Fee (Per Person)", "🪙 ${widget.entryFee}"),
                   const SizedBox(height: 10),
-                  _buildSummaryRow("Slots Selected", "x ${widget.selectedSlots.length}"),
+                  _buildSummaryRow("Slots Selected", "x ${displayUniqueSlots.length}"),
                   const Divider(color: Color(0xFF374151), height: 30, thickness: 1),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -251,7 +256,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                 border: Border.all(color: const Color(0xFF374151)),
               ),
               child: Column(
-                children: widget.selectedSlots.asMap().entries.map((entry) {
+                children: displayUniqueSlots.asMap().entries.map((entry) {
                   int idx = entry.key;
                   var parts = entry.value.split('-'); 
                   String slotNo = parts[0];
@@ -260,7 +265,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                   return Container(
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
-                      border: idx != widget.selectedSlots.length - 1 
+                      border: idx != displayUniqueSlots.length - 1 
                           ? const Border(bottom: BorderSide(color: Color(0xFF374151))) 
                           : null,
                     ),
