@@ -46,41 +46,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // 🌟 PRE-CHECK 1: Check if Referral Code is Valid 🌟
       String? validReferrerId;
       if (referralCode.isNotEmpty) {
-        final referCheck = await supabase
-            .from('users')
-            .select('id')
-            .eq('fcode', referralCode)
-            .maybeSingle();
+        // 🔥 FIX: Error handling ko improve kiya hai aur strictly eq match kiya hai
+        try {
+           final referCheck = await supabase
+              .from('users')
+              .select('id')
+              .eq('fcode', referralCode)
+              .limit(1)
+              .maybeSingle();
 
-        if (referCheck == null) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Invalid Referral Code! Please check again."), backgroundColor: Colors.red));
+          if (referCheck == null) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Invalid Referral Code! Please check again."), backgroundColor: Colors.red));
+            setState(() => _isLoading = false);
+            return;
+          }
+          validReferrerId = referCheck['id'];
+        } catch (e) {
+          debugPrint("Referral Code Fetch Error: $e");
+          // Agar RLS ki wajah se error aata hai (permission denied), toh hum usko handle karenge.
+          // Abhi ke liye hum ise fail maanenge.
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Invalid Referral Code or Server Error."), backgroundColor: Colors.red));
           setState(() => _isLoading = false);
           return;
         }
-        validReferrerId = referCheck['id'];
       }
 
       // 🌟 PRE-CHECK 2: Duplicate Check (Username, Mobile, Email) 🌟
-      final existingCheck = await supabase
-          .from('users')
-          .select('username, mobile, email')
-          .or('username.eq.$username,mobile.eq.$mobile,email.eq.$email');
+      try {
+        final existingCheck = await supabase
+            .from('users')
+            .select('username, mobile, email')
+            .or('username.eq.$username,mobile.eq.$mobile,email.eq.$email');
 
-      if (existingCheck.isNotEmpty) {
-        bool isUsernameTaken = existingCheck.any((u) => u['username'] == username);
-        bool isMobileTaken = existingCheck.any((u) => u['mobile'] == mobile);
-        bool isEmailTaken = existingCheck.any((u) => u['email'] == email);
+        if (existingCheck.isNotEmpty) {
+          bool isUsernameTaken = existingCheck.any((u) => u['username'] == username);
+          bool isMobileTaken = existingCheck.any((u) => u['mobile'] == mobile);
+          bool isEmailTaken = existingCheck.any((u) => u['email'] == email);
 
-        if (isUsernameTaken) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Username is already taken! Try another."), backgroundColor: Colors.red));
-        } else if (isMobileTaken) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Mobile number is already registered! Please login."), backgroundColor: Colors.red));
-        } else if (isEmailTaken) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email is already registered! Please login."), backgroundColor: Colors.red));
+          if (isUsernameTaken) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Username is already taken! Try another."), backgroundColor: Colors.red));
+          } else if (isMobileTaken) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Mobile number is already registered! Please login."), backgroundColor: Colors.red));
+          } else if (isEmailTaken) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email is already registered! Please login."), backgroundColor: Colors.red));
+          }
+          
+          setState(() => _isLoading = false);
+          return; 
         }
-        
-        setState(() => _isLoading = false);
-        return; 
+      } catch (e) {
+         debugPrint("Duplicate Check Error: $e");
+         // Agar existing check fail ho jaye, toh use aage badhne denge taaki auth error khud handle kar le.
       }
 
       // 🌟 REGISTRATION PROCEED 🌟
@@ -95,7 +111,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         String ownReferCode = "USR${Random().nextInt(90000) + 10000}";
         
         // 🌟 DATABASE INSERT 🌟
-        // Database triggers automatically 'bonus' aur 'wallet_balance' update kar lenge!
         await supabase.from('users').insert({
           'id': user.id,
           'username': username,
@@ -105,20 +120,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'referred_by': referralCode.isNotEmpty ? referralCode : null,
         });
 
-        // Agar refer code successfully lag gaya hai
-        if (validReferrerId != null) {
-           // Tum chaho toh Transaction history me record daal sakte ho UI dikhane ke liye
-           try {
-             await supabase.from('transactions').insert({
-              'user_id': user.id,
-              'amount': 3,
-              'type': 'deposit',
-              'txn_ref': 'REFER_BONUS_SIGNUP',
-              'status': 'success',
-              'created_at': DateTime.now().toUtc().toIso8601String(),
-             });
-           } catch (_) {}
-        }
+        // Transaction log abhi frontend se nahi karte, kyunki Supabase Trigger (give_welcome_bonus)
+        // ye kaam khud handle kar lega! Pichle trigger me maine transactions me entry ka code de diya tha.
 
         if (mounted) {
           String successMsg = "✅ Registration Successful! Please check your email for verification.";
