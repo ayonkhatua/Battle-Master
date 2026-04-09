@@ -71,7 +71,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
       if (statusRes['status'].toString().toLowerCase() != 'upcoming') {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Sorry! The match has already started or is full."), backgroundColor: Colors.red));
-        Navigator.of(context).popUntil((route) => route.isFirst); // Home bhej do
+        Navigator.of(context).popUntil((route) => route.isFirst);
         return;
       }
 
@@ -81,11 +81,11 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
       if (currentFilled + uniqueSlots.length > totalCapacity) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Sorry! Not enough slots available."), backgroundColor: Colors.red));
-        Navigator.pop(context); // Wapas Choose Slot Screen pe
+        Navigator.pop(context);
         return;
       }
 
-      // 🛡️ SECURITY CHECK 2: Fastest Finger First (Check Availability)
+      // 🛡️ SECURITY CHECK 2: Fastest Finger First
       final existingParticipants = await Supabase.instance.client
           .from('user_tournaments')
           .select('slot_number, position')
@@ -114,7 +114,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
          ScaffoldMessenger.of(context).showSnackBar(
            SnackBar(content: Text("⚠️ Sorry! Someone else just booked $takenSlotInfo. Please choose another one."), backgroundColor: Colors.orange)
          );
-         Navigator.pop(context); // Wapas Choose Slot Screen pe bhej do naya chunne ke liye
+         Navigator.pop(context);
          return; 
       }
 
@@ -129,13 +129,16 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
       }
 
       // ==========================================
-      // ✅ SAB CHECKS PASS! AB PAYMENT KATO AUR BOOK KARO ✅
+      // ✅ WALLET DEDUCTION (Paisa kato)
       // ==========================================
-      
-      // 1. Wallet deduction
-      await Supabase.instance.client.from('users').update({'wallet_balance': freshWallet - totalFee}).eq('id', user.id);
+      await Supabase.instance.client
+          .from('users')
+          .update({'wallet_balance': freshWallet - totalFee})
+          .eq('id', user.id);
 
-      // 2. Participants entries
+      // ==========================================
+      // ✅ PARTICIPANTS ENTRY (Book karo)
+      // ==========================================
       for (int i = 0; i < uniqueSlots.length; i++) {
         var parts = uniqueSlots[i].split('-'); 
         await Supabase.instance.client.from('user_tournaments').insert({
@@ -147,17 +150,22 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         });
       }
 
-      // 3. Transaction record
+      // ==========================================
+      // ✅ TRANSACTION RECORD (History ke liye)
+      // ==========================================
       await Supabase.instance.client.from('transactions').insert({
         'user_id': user.id,
         'amount': totalFee,
-        'type': 'withdraw',
+        'type': 'entry_fee', // 🌟 FIXED: Ab ye admin ke withdrawal page pe pending nahi dikhega!
         'txn_ref': 'JOIN_${widget.tournamentId}_${DateTime.now().millisecondsSinceEpoch}',
-        'status': 'success',
+        'status': 'approved', // Seedha approved mark hoga
       });
 
-      // 4. Update filled count
-      await Supabase.instance.client.from('tournaments').update({'filled': currentFilled + uniqueSlots.length}).eq('id', widget.tournamentId);
+      // Update filled count
+      await Supabase.instance.client
+          .from('tournaments')
+          .update({'filled': currentFilled + uniqueSlots.length})
+          .eq('id', widget.tournamentId);
 
       // FCM Subscription
       try {
@@ -241,13 +249,11 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         )
       : Column(
           children: [
-            // 🌟 Scrollable content area
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    // Balance Card
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -291,7 +297,6 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
                     const Align(alignment: Alignment.centerLeft, child: Text("Enter In-Game Names (IGN)", style: TextStyle(color: Color(0xFFfacc15), fontSize: 18, fontWeight: FontWeight.bold))),
                     const SizedBox(height: 15),
 
-                    // IGN Inputs
                     Container(
                       decoration: BoxDecoration(color: const Color(0xFF1e293b), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF374151))),
                       child: Column(
@@ -351,7 +356,6 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
               ),
             ),
 
-            // 🌟 Fixed Bottom Buttons (Safely handling overflows)
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
