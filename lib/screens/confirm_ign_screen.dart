@@ -44,7 +44,7 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
     }
   }
 
-  // 🌟 NAYA DIRECT FLUTTER LOGIC 🌟
+  // 🌟 NAYA PRIORITY MINUS LOGIC 🌟
   Future<void> _handleJoin() async {
     final List<String> uniqueSlots = widget.selectedSlots.toSet().toList();
     final user = Supabase.instance.client.auth.currentUser;
@@ -81,24 +81,69 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         throw "Sorry! Not enough slots available.";
       }
 
-      // 2. User ka Latest Wallet Balance lao
+      // 2. User ka Latest Data lao
       final userData = await Supabase.instance.client
           .from('users')
-          .select('wallet_balance')
+          .select('wallet_balance, deposited, bonus, winning')
           .eq('id', user.id)
           .single();
       
       int currentWallet = userData['wallet_balance'] ?? 0;
+      int currentDeposited = userData['deposited'] ?? 0;
+      int currentBonus = userData['bonus'] ?? 0;
+      int currentWinning = userData['winning'] ?? 0;
 
-      // 3. Check Balance
+      // 3. Check Total Balance
       if (currentWallet < totalFeeToPay) {
         throw "Insufficient balance! Need 🪙$totalFeeToPay, but you have 🪙$currentWallet.";
       }
 
-      // 🌟 STEP A: WALLET SE PAISA KATO 🌟
+      // 🌟 STEP A: PRIORITY DEDUCTION LOGIC 🌟
+      int remainingFee = totalFeeToPay;
+      
+      int newDeposited = currentDeposited;
+      int newBonus = currentBonus;
+      int newWinning = currentWinning;
+
+      // 1st Priority: Deduct from Deposited
+      if (newDeposited >= remainingFee) {
+        newDeposited -= remainingFee;
+        remainingFee = 0;
+      } else {
+        remainingFee -= newDeposited;
+        newDeposited = 0;
+      }
+
+      // 2nd Priority: Deduct from Bonus (If any fee is still remaining)
+      if (remainingFee > 0) {
+        if (newBonus >= remainingFee) {
+          newBonus -= remainingFee;
+          remainingFee = 0;
+        } else {
+          remainingFee -= newBonus;
+          newBonus = 0;
+        }
+      }
+
+      // 3rd Priority: Deduct from Winning (If any fee is still remaining)
+      if (remainingFee > 0) {
+        if (newWinning >= remainingFee) {
+          newWinning -= remainingFee;
+          remainingFee = 0;
+        } else {
+          remainingFee -= newWinning;
+          newWinning = 0; // Ideally, it shouldn't reach here due to the initial wallet balance check
+        }
+      }
+
+      // Update User table with new values
       await Supabase.instance.client
           .from('users')
-          .update({'wallet_balance': currentWallet - totalFeeToPay})
+          .update({
+            'deposited': newDeposited,
+            'bonus': newBonus,
+            'winning': newWinning,
+          })
           .eq('id', user.id);
 
       // 🌟 STEP B: JOIN ENTRIES 🌟
@@ -114,7 +159,6 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
       }
 
       // 🌟 STEP C: TRANSACTION HISTORY RECORD 🌟
-      // Use 'withdraw' to avoid constraint errors
       await Supabase.instance.client.from('transactions').insert({
         'user_id': user.id,
         'amount': totalFeeToPay,

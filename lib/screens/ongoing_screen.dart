@@ -43,18 +43,19 @@ class _OngoingScreenState extends State<OngoingScreen> {
       
       dynamic response;
 
+      // 🌟 ASLI FIX: SIRF 'ongoing' STATUS WALE MATCH LO 🌟
       if (widget.isMyMatches && userId != null) {
         response = await Supabase.instance.client
             .from('tournaments')
             .select('*, user_tournaments!inner(user_id)')
             .eq('user_tournaments.user_id', userId)
-            .neq('status', 'completed') 
+            .eq('status', 'ongoing') // 👈 FIX: Yahan status update kiya
             .order('time', ascending: false);
       } else {
         response = await Supabase.instance.client
             .from('tournaments')
             .select('*')
-            .neq('status', 'completed')
+            .eq('status', 'ongoing') // 👈 FIX: Yahan status update kiya
             .order('time', ascending: false);
       }
 
@@ -66,14 +67,12 @@ class _OngoingScreenState extends State<OngoingScreen> {
           int tId = row['id'];
           DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
 
-          // Start ho chuka hai
-          if (!matchTimeUTC.isAfter(nowUTC)) {
-            if (!uniqueMatches.containsKey(tId)) {
-              uniqueMatches[tId] = {
-                ...row as Map<String, dynamic>,
-                'matchTime': matchTimeUTC,
-              };
-            }
+          // 🌟 TIME CHECK HATA DIYA: Ab sirf Status decide karega 🌟
+          if (!uniqueMatches.containsKey(tId)) {
+            uniqueMatches[tId] = {
+              ...row as Map<String, dynamic>,
+              'matchTime': matchTimeUTC,
+            };
           }
         }
       }
@@ -305,13 +304,12 @@ class _OngoingScreenState extends State<OngoingScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     // Yahan baad mein Youtube link kholne ka code aayega
-                    // Example: launchUrl(Uri.parse(t['youtube_link']));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Opening YouTube Link... (Add URL logic here)'))
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8B5CF6), // Purple color jaisa image me tha
+                    backgroundColor: const Color(0xFF8B5CF6), // Purple color
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),

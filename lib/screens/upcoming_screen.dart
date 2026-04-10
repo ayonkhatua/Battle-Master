@@ -41,24 +41,27 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
     try {
       if (!silentRefresh) setState(() => _isLoading = true);
 
+      // 🌟 ASLI FIX: SIRF 'upcoming' STATUS WALE MATCH LO 🌟
+      // Agar Admin ne 'ongoing' ya 'completed' kar diya hai, toh yahan fetch hi nahi hoga
       final response = await Supabase.instance.client
           .from('tournaments')
           .select('*, user_tournaments!inner(user_id)')
           .eq('user_tournaments.user_id', user.id)
-          .neq('status', 'completed') 
+          .eq('status', 'upcoming') // 👈 YEH LINE FIX HAI
           .order('time', ascending: true);
 
-      final nowUTC = DateTime.now().toUtc();
+      final nowLocal = DateTime.now();
       
-      // 🌟 MAP SE DUPLICATE HATANA (Duo/Squad Fix) 🌟
       Map<int, Map<String, dynamic>> uniqueUpcoming = {};
 
       for (var row in response as List<dynamic>) {
         int tId = row['id'];
-        DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
         
-        // Sirf aage ka time (Upcoming) dikhao
-        if (matchTimeUTC.isAfter(nowUTC)) {
+        // Time ko local mein convert kar rahe hain directly
+        DateTime matchTimeLocal = DateTime.tryParse(row['time'].toString())?.toLocal() ?? nowLocal;
+        
+        // 🌟 TIME FIX: Agar match time local current time se aage hai, tabhi show karo 🌟
+        if (matchTimeLocal.isAfter(nowLocal)) {
           if (!uniqueUpcoming.containsKey(tId)) {
             int slots = row['slots'] ?? 0;
             String type = (row['type'] ?? '').toString().toLowerCase();
@@ -77,7 +80,7 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
               'filled': filled,
               'progress': progress,
               'spotsLeft': totalSlots - filled,
-              'matchTimeUTC': matchTimeUTC,
+              'matchTimeLocal': matchTimeLocal, // Passing local time to UI directly
             };
           }
         }
@@ -97,8 +100,6 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
 
   // 🌟 POPUP LOGIC: Prize Pool Arrow dabane par dikhega 🌟
   void _showPrizePoolPopup(BuildContext context, Map<String, dynamic> t) {
-    // Abhi ke liye hum static dummy data dikha rahe hain.
-    // Jab Admin panel mein "Prize Description" ka column banega, tab hum ise wahan se dynamic kar denge.
     String prizeDesc = t['prize_description'] ?? "1st Team: ${t['prize_pool']} Coins\n2nd Team: 50 Coins\n3rd Team: 20 Coins";
 
     showDialog(
@@ -171,7 +172,8 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
   // 🚀 COMPACT UPCOMING CARD (NO IMAGE)
   // ==========================================
   Widget _buildCompactUpcomingCard(Map<String, dynamic> t) {
-    DateTime localTime = t['matchTimeUTC'].toLocal();
+    // 🌟 LOCAL TIME USE KAR RAHE HAIN DIRECTLY 🌟
+    DateTime localTime = t['matchTimeLocal'];
     String formattedDate = DateFormat('dd/MM/yyyy').format(localTime);
     String formattedTimeStr = DateFormat('hh:mm a').format(localTime);
 
