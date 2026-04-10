@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
 
-  // FAQ ka Data List (App ka naam 'Battle Master' kar diya hai)
+   // FAQ ka Data List (App ka naam 'Battle Master' kar diya hai)
   final List<Map<String, String>> _faqs = const [
     {
       "question": "Battle Master app kya hai?",
