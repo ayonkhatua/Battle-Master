@@ -44,9 +44,11 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
     }
   }
 
+  // 🌟 NAYA DIRECT FLUTTER LOGIC 🌟
   Future<void> _handleJoin() async {
     final List<String> uniqueSlots = widget.selectedSlots.toSet().toList();
-    int totalFee = widget.entryFee * uniqueSlots.length;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
 
     for (var controller in _ignControllers) {
       if (controller.text.trim().isEmpty) {
@@ -58,87 +60,48 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) throw Exception("User not logged in");
-
-      // 🛡️ SECURITY CHECK 1: Match Status & Filled Count
-      final statusRes = await Supabase.instance.client
+      // 1. Tournament ki latest details lao
+      final tData = await Supabase.instance.client
           .from('tournaments')
-          .select('status, filled, slots, type')
+          .select('entry_fee, filled, slots, type, status')
           .eq('id', widget.tournamentId)
           .single();
+      
+      int actualEntryFee = tData['entry_fee'] ?? 0;
+      int currentFilled = tData['filled'] ?? 0;
+      int totalFeeToPay = actualEntryFee * uniqueSlots.length;
+      String status = tData['status'].toString().toLowerCase();
 
-      if (statusRes['status'].toString().toLowerCase() != 'upcoming') {
-        setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Sorry! The match has already started or is full."), backgroundColor: Colors.red));
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        return;
+      if (status != 'upcoming') {
+        throw "Sorry! The match has already started or is full.";
       }
 
-      int totalCapacity = (statusRes['slots'] ?? 0) * (statusRes['type'].toString().toLowerCase() == 'squad' ? 4 : (statusRes['type'].toString().toLowerCase() == 'duo' ? 2 : 1));
-      int currentFilled = statusRes['filled'] ?? 0;
-
+      int totalCapacity = (tData['slots'] ?? 0) * (tData['type'].toString().toLowerCase() == 'squad' ? 4 : (tData['type'].toString().toLowerCase() == 'duo' ? 2 : 1));
       if (currentFilled + uniqueSlots.length > totalCapacity) {
-        setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Sorry! Not enough slots available."), backgroundColor: Colors.red));
-        Navigator.pop(context);
-        return;
+        throw "Sorry! Not enough slots available.";
       }
 
-      // 🛡️ SECURITY CHECK 2: Fastest Finger First
-      final existingParticipants = await Supabase.instance.client
-          .from('user_tournaments')
-          .select('slot_number, position')
-          .eq('tournament_id', widget.tournamentId);
+      // 2. User ka Latest Wallet Balance lao
+      final userData = await Supabase.instance.client
+          .from('users')
+          .select('wallet_balance')
+          .eq('id', user.id)
+          .single();
+      
+      int currentWallet = userData['wallet_balance'] ?? 0;
 
-      bool slotAlreadyTaken = false;
-      String takenSlotInfo = "";
-
-      for (String selectedSlot in uniqueSlots) {
-        var parts = selectedSlot.split('-'); 
-        int targetSlotNo = int.parse(parts[0]);
-        String targetPos = parts.length > 1 ? parts[1] : '1';
-
-        for (var row in existingParticipants as List<dynamic>) {
-          if (row['slot_number'] == targetSlotNo && row['position'] == targetPos) {
-            slotAlreadyTaken = true;
-            takenSlotInfo = "Slot $targetSlotNo (P$targetPos)";
-            break;
-          }
-        }
-        if (slotAlreadyTaken) break;
+      // 3. Check Balance
+      if (currentWallet < totalFeeToPay) {
+        throw "Insufficient balance! Need 🪙$totalFeeToPay, but you have 🪙$currentWallet.";
       }
 
-      if (slotAlreadyTaken) {
-         setState(() => _isProcessing = false);
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text("⚠️ Sorry! Someone else just booked $takenSlotInfo. Please choose another one."), backgroundColor: Colors.orange)
-         );
-         Navigator.pop(context);
-         return; 
-      }
-
-      // 🛡️ SECURITY CHECK 3: Wallet balance check
-      final freshUserReq = await Supabase.instance.client.from('users').select('wallet_balance').eq('id', user.id).single();
-      int freshWallet = freshUserReq['wallet_balance'] ?? 0;
-
-      if (freshWallet < totalFee) {
-        setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Not enough balance!"), backgroundColor: Colors.red));
-        return;
-      }
-
-      // ==========================================
-      // ✅ WALLET DEDUCTION (Paisa kato)
-      // ==========================================
+      // 🌟 STEP A: WALLET SE PAISA KATO 🌟
       await Supabase.instance.client
           .from('users')
-          .update({'wallet_balance': freshWallet - totalFee})
+          .update({'wallet_balance': currentWallet - totalFeeToPay})
           .eq('id', user.id);
 
-      // ==========================================
-      // ✅ PARTICIPANTS ENTRY (Book karo)
-      // ==========================================
+      // 🌟 STEP B: JOIN ENTRIES 🌟
       for (int i = 0; i < uniqueSlots.length; i++) {
         var parts = uniqueSlots[i].split('-'); 
         await Supabase.instance.client.from('user_tournaments').insert({
@@ -150,77 +113,80 @@ class _ConfirmJoinScreenState extends State<ConfirmJoinScreen> {
         });
       }
 
-      // ==========================================
-      // ✅ TRANSACTION RECORD (History ke liye)
-      // ==========================================
+      // 🌟 STEP C: TRANSACTION HISTORY RECORD 🌟
+      // Use 'withdraw' to avoid constraint errors
       await Supabase.instance.client.from('transactions').insert({
         'user_id': user.id,
-        'amount': totalFee,
-        'type': 'entry_fee', // 🌟 FIXED: Ab ye admin ke withdrawal page pe pending nahi dikhega!
-        'txn_ref': 'JOIN_${widget.tournamentId}_${DateTime.now().millisecondsSinceEpoch}',
-        'status': 'approved', // Seedha approved mark hoga
+        'amount': totalFeeToPay,
+        'type': 'withdraw', 
+        'txn_ref': 'JOIN_MATCH_${widget.tournamentId}',
+        'status': 'approved',
       });
 
-      // Update filled count
+      // 🌟 STEP D: TOURNAMENT FILLED SLOTS UPDATE 🌟
       await Supabase.instance.client
           .from('tournaments')
           .update({'filled': currentFilled + uniqueSlots.length})
           .eq('id', widget.tournamentId);
 
-      // FCM Subscription
       try {
         await FirebaseMessaging.instance.subscribeToTopic('tournament_${widget.tournamentId}');
       } catch (_) {}
 
-      // 🌟 SUCCESS POPUP 🌟
+      // Success Popup
       if (mounted) {
-        setState(() => _isProcessing = false); 
-        Future.delayed(Duration.zero, () {
-          showDialog(
-            context: context,
-            barrierDismissible: false, 
-            builder: (BuildContext dialogContext) {
-              return Dialog(
-                backgroundColor: const Color(0xFF1e293b),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.greenAccent, size: 80),
-                      const SizedBox(height: 20),
-                      const Text("JOINED SUCCESSFULLY!", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                      const SizedBox(height: 10),
-                      const Text("Your slots are confirmed. Room ID and Password will be updated before the match starts.", style: TextStyle(color: Colors.grey, fontSize: 14), textAlign: TextAlign.center),
-                      const SizedBox(height: 30),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFfacc15),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onPressed: () => Navigator.of(dialogContext).popUntil((route) => route.isFirst),
-                          child: const Text("BACK TO HOME", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        });
+        setState(() => _isProcessing = false);
+        _showSuccessPopup();
       }
 
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Failed: $e"), backgroundColor: Colors.red));
         setState(() => _isProcessing = false);
+        String errorMsg = e is PostgrestException ? e.message : e.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Error: $errorMsg"), backgroundColor: Colors.redAccent, duration: const Duration(seconds: 5)),
+        );
       }
     }
+  }
+
+  void _showSuccessPopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, 
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          backgroundColor: const Color(0xFF1e293b),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle, color: Colors.greenAccent, size: 80),
+                const SizedBox(height: 20),
+                const Text("JOINED SUCCESSFULLY!", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                const SizedBox(height: 10),
+                const Text("Your slots are confirmed. Room ID and Password will be updated before the match starts.", style: TextStyle(color: Colors.grey, fontSize: 14), textAlign: TextAlign.center),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFfacc15),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.of(dialogContext).popUntil((route) => route.isFirst),
+                    child: const Text("BACK TO HOME", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
