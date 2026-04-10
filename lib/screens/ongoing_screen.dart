@@ -43,36 +43,40 @@ class _OngoingScreenState extends State<OngoingScreen> {
       
       dynamic response;
 
-      // 🌟 ASLI FIX: SIRF 'ongoing' STATUS WALE MATCH LO 🌟
+      // 🌟 ASLI FIX: SIRF 'completed' STATUS KO CHHOD KAR SAB LO 🌟
       if (widget.isMyMatches && userId != null) {
         response = await Supabase.instance.client
             .from('tournaments')
             .select('*, user_tournaments!inner(user_id)')
             .eq('user_tournaments.user_id', userId)
-            .eq('status', 'ongoing') // 👈 FIX: Yahan status update kiya
+            .neq('status', 'completed') // 👈 FIX: 'ongoing' hata kar ye wapas laga diya
             .order('time', ascending: false);
       } else {
         response = await Supabase.instance.client
             .from('tournaments')
             .select('*')
-            .eq('status', 'ongoing') // 👈 FIX: Yahan status update kiya
+            .neq('status', 'completed') // 👈 FIX
             .order('time', ascending: false);
       }
 
-      final nowUTC = DateTime.now().toUtc();
+      final nowLocal = DateTime.now(); // 🌟 Local Time le rahe hain
       Map<int, Map<String, dynamic>> uniqueMatches = {};
 
       if (response != null) {
         for (var row in response as List<dynamic>) {
           int tId = row['id'];
-          DateTime matchTimeUTC = DateTime.tryParse(row['time'].toString())?.toUtc() ?? nowUTC;
+          
+          // Time ko directly Local mein convert kar rahe hain taaki galti na ho
+          DateTime matchTimeLocal = DateTime.tryParse(row['time'].toString())?.toLocal() ?? nowLocal;
 
-          // 🌟 TIME CHECK HATA DIYA: Ab sirf Status decide karega 🌟
-          if (!uniqueMatches.containsKey(tId)) {
-            uniqueMatches[tId] = {
-              ...row as Map<String, dynamic>,
-              'matchTime': matchTimeUTC,
-            };
+          // 🌟 TIME CHECK: Agar match ka time nikal chuka hai (future mein nahi hai), tabhi yahan dikhao 🌟
+          if (!matchTimeLocal.isAfter(nowLocal)) {
+            if (!uniqueMatches.containsKey(tId)) {
+              uniqueMatches[tId] = {
+                ...row as Map<String, dynamic>,
+                'matchTimeLocal': matchTimeLocal,
+              };
+            }
           }
         }
       }
@@ -146,7 +150,7 @@ class _OngoingScreenState extends State<OngoingScreen> {
   // 🚀 COMPACT ONGOING CARD
   // ==========================================
   Widget _buildCompactCard(Map<String, dynamic> t) {
-    DateTime localTime = t['matchTime'].toLocal();
+    DateTime localTime = t['matchTimeLocal'];
     String formattedDate = DateFormat('dd/MM/yyyy').format(localTime);
     String formattedTimeStr = DateFormat('hh:mm a').format(localTime);
 

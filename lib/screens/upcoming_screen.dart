@@ -41,13 +41,13 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
     try {
       if (!silentRefresh) setState(() => _isLoading = true);
 
-      // 🌟 ASLI FIX: SIRF 'upcoming' STATUS WALE MATCH LO 🌟
-      // Agar Admin ne 'ongoing' ya 'completed' kar diya hai, toh yahan fetch hi nahi hoga
+      // 🌟 ASLI FIX: SIRF COMPLETED HATA DO, BAAKI SAB LAO 🌟
+      // Ab Status ki jagah hum sirf Time se filter karenge
       final response = await Supabase.instance.client
           .from('tournaments')
           .select('*, user_tournaments!inner(user_id)')
           .eq('user_tournaments.user_id', user.id)
-          .eq('status', 'upcoming') // 👈 YEH LINE FIX HAI
+          .neq('status', 'completed') // 👈 'upcoming' check hata diya
           .order('time', ascending: true);
 
       final nowLocal = DateTime.now();
@@ -60,7 +60,7 @@ class _UpcomingScreenState extends State<UpcomingScreen> {
         // Time ko local mein convert kar rahe hain directly
         DateTime matchTimeLocal = DateTime.tryParse(row['time'].toString())?.toLocal() ?? nowLocal;
         
-        // 🌟 TIME FIX: Agar match time local current time se aage hai, tabhi show karo 🌟
+        // 🌟 TIME FIX: Agar match time local current time se aage (future mein) hai, tabhi show karo 🌟
         if (matchTimeLocal.isAfter(nowLocal)) {
           if (!uniqueUpcoming.containsKey(tId)) {
             int slots = row['slots'] ?? 0;
